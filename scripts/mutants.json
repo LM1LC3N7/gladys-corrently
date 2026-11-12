@@ -160,5 +160,11 @@
     "file": "src/http.js",
     "from": "    const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json' };",
     "to": "    const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json', Authorization: 'Bearer x' };"
+  },
+  {
+    "name": "iat older than 72 h accepted",
+    "file": "src/app.js",
+    "from": "computed <= wall && computed >= wall - MAX_DATA_AGE",
+    "to": "computed <= wall"
   }
 ]

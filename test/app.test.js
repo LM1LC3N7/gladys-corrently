@@ -573,3 +573,23 @@ test('an iat in the future is not the data date: the read time is', async (t) =>
   const { fetched_at: date } = readData(dataDir);
   assert.ok(date >= START && date < START + 60_000, String(date - START));
 });
+
+test('an iat more than 72 h old is not the data date: the read time is', async (t) => {
+  const { app, gladys, dataDir } = setup(t, {
+    routes: [
+      [
+        /gsi\/prediction/,
+        () => {
+          const body = answerAt(FIXTURE_START);
+          body.forecast = body.forecast.map((e) => ({ ...e, iat: START - 80 * HOUR }));
+          return json(body);
+        },
+      ],
+    ],
+  });
+  await app.start({ zip: '10115' });
+  await app.reading;
+  const { fetched_at: date } = readData(dataDir);
+  assert.ok(date >= START && date < START + 60_000, String(date - START));
+  assert.ok(Number.isFinite(gladys.fake.lastState(F('gsi'))), 'the forecast is used');
+});
