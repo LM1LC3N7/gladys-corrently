@@ -6,6 +6,8 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-12
+
 ### Added
 
 - Corrently GrünstromIndex of a German postcode: index now, next hour, best of
@@ -16,3 +18,6 @@ uses [semantic versioning](https://semver.org/).
   later.
 - One read per hour at most (Corrently fair use), kept across restarts and
   postcode changes; no token needed.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-corrently/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-corrently/releases/tag/v0.1.1

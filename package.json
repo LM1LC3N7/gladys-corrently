@@ -1,6 +1,6 @@
 {
   "name": "gladys-corrently",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Corrently GrünstromIndex for Gladys Assistant: how green the power is around a German postcode, now, next hour and the greenest hour of the next 24 hours, plus a Gladys energy calendar.",
   "type": "module",
