@@ -24,9 +24,9 @@
         "de": "Corrently GrünstromIndex"
       },
       "description": {
-        "en": "Unofficial connector, not affiliated with Corrently or STROMDAO. It reads the official GrünstromIndex forecast (0 to 100: how much of the power around a German postcode comes from renewables, hour by hour, about three days ahead) once an hour at most, as the Corrently fair-use policy asks. One device with the index now, next hour, the best of the next 24 hours and the hours until it, plus the Gladys energy calendar green-power-index-de (low, medium, high per half hour). Data: Corrently, CC BY-NC-SA 4.0, for non-commercial use.",
-        "fr": "Connecteur non officiel, sans lien avec Corrently ni STROMDAO. Il lit la prévision officielle du GrünstromIndex (0 à 100 : part d'électricité renouvelable autour d'un code postal allemand, heure par heure, environ trois jours à l'avance) une fois par heure au plus, comme le demande la règle d'usage raisonnable de Corrently. Un appareil avec l'indice actuel, celui de l'heure suivante, le meilleur des 24 prochaines heures et le nombre d'heures avant lui, plus le calendrier d'énergie Gladys green-power-index-de (low, medium, high par demi-heure). Données : Corrently, CC BY-NC-SA 4.0, pour un usage non commercial.",
-        "de": "Inoffizieller Konnektor, ohne Verbindung zu Corrently oder STROMDAO. Er liest die offizielle GrünstromIndex-Prognose (0 bis 100: Anteil erneuerbaren Stroms rund um eine Postleitzahl, stündlich, etwa drei Tage im Voraus) höchstens einmal pro Stunde, wie es die Fair-Use-Regel von Corrently verlangt. Ein Gerät mit dem Index jetzt, in der nächsten Stunde, dem besten der nächsten 24 Stunden und den Stunden bis dahin, dazu der Gladys-Energiekalender green-power-index-de (low, medium, high je halbe Stunde). Daten: Corrently, CC BY-NC-SA 4.0, für nicht kommerzielle Nutzung."
+        "en": "Unofficial connector, not affiliated with Corrently or STROMDAO. It reads the official GrünstromIndex forecast (0 to 100: how much of the power around a German postcode comes from renewables, hour by hour, about five days ahead) once an hour at most, as the Corrently fair-use policy asks. One device with the index now, next hour, the best of the next 24 hours and the hours until it, plus the Gladys energy calendar green-power-index-de (low, medium, high per half hour). Data: Corrently (STROMDAO GmbH), CC BY-NC-SA 4.0, adapted (index rounded, levels computed by this module); a commercial use needs a licence from Corrently.",
+        "fr": "Connecteur non officiel, sans lien avec Corrently ni STROMDAO. Il lit la prévision officielle du GrünstromIndex (0 à 100 : part d'électricité renouvelable autour d'un code postal allemand, heure par heure, environ cinq jours à l'avance) une fois par heure au plus, comme le demande la règle d'usage raisonnable de Corrently. Un appareil avec l'indice actuel, celui de l'heure suivante, le meilleur des 24 prochaines heures et le nombre d'heures avant lui, plus le calendrier d'énergie Gladys green-power-index-de (low, medium, high par demi-heure). Données : Corrently (STROMDAO GmbH), CC BY-NC-SA 4.0, adaptées (indice arrondi, niveaux calculés par ce module) ; un usage commercial exige une licence de Corrently.",
+        "de": "Inoffizieller Konnektor, ohne Verbindung zu Corrently oder STROMDAO. Er liest die offizielle GrünstromIndex-Prognose (0 bis 100: Anteil erneuerbaren Stroms rund um eine Postleitzahl, stündlich, etwa fünf Tage im Voraus) höchstens einmal pro Stunde, wie es die Fair-Use-Regel von Corrently verlangt. Ein Gerät mit dem Index jetzt, in der nächsten Stunde, dem besten der nächsten 24 Stunden und den Stunden bis dahin, dazu der Gladys-Energiekalender green-power-index-de (low, medium, high je halbe Stunde). Daten: Corrently (STROMDAO GmbH), CC BY-NC-SA 4.0, bearbeitet (Index gerundet, Stufen von diesem Modul berechnet); eine kommerzielle Nutzung erfordert eine Lizenz von Corrently."
       },
       "links": [
         {
@@ -35,6 +35,14 @@
             "en": "GrünstromIndex documentation",
             "fr": "Documentation du GrünstromIndex",
             "de": "GrünstromIndex-Dokumentation"
+          }
+        },
+        {
+          "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.en",
+          "label": {
+            "en": "Data licence CC BY-NC-SA 4.0",
+            "fr": "Licence des données CC BY-NC-SA 4.0",
+            "de": "Datenlizenz CC BY-NC-SA 4.0"
           }
         },
         {
@@ -51,27 +59,20 @@
       "key": "zip",
       "type": "string",
       "required": true,
-      "label": { "en": "German postcode", "fr": "Code postal allemand", "de": "Postleitzahl" },
+      "label": {
+        "en": "German postcode",
+        "fr": "Code postal allemand",
+        "de": "Postleitzahl"
+      },
       "description": {
         "en": "Five digits, leading zero included. Changing it creates a new device.",
         "fr": "Cinq chiffres, zéro initial compris. Le changer crée un nouvel appareil.",
         "de": "Fünf Ziffern, mit führender Null. Eine Änderung legt ein neues Gerät an."
       },
-      "placeholder": { "en": "e.g. 69256", "fr": "ex. 69256", "de": "z. B. 69256" }
-    },
-    {
-      "key": "token",
-      "type": "secret",
-      "required": false,
-      "label": {
-        "en": "Corrently token (optional)",
-        "fr": "Jeton Corrently (facultatif)",
-        "de": "Corrently-Token (optional)"
-      },
-      "description": {
-        "en": "Free token from console.corrently.io, recommended since Corrently announces the end of the access without token. Kept by Gladys in its database, never shown again, and only sent to Corrently.",
-        "fr": "Jeton gratuit de console.corrently.io, conseillé car Corrently annonce la fin de l'accès sans jeton. Gardé par Gladys dans sa base, jamais réaffiché, et envoyé seulement à Corrently.",
-        "de": "Kostenloses Token von console.corrently.io, empfohlen, da Corrently das Ende des Zugangs ohne Token ankündigt. Von Gladys in ihrer Datenbank aufbewahrt, nie wieder angezeigt und nur an Corrently gesendet."
+      "placeholder": {
+        "en": "e.g. 69256",
+        "fr": "ex. 69256",
+        "de": "z. B. 69256"
       }
     }
   ],

@@ -18,13 +18,9 @@ test('a missing or invalid postcode is an error, never echoed', () => {
   }
 });
 
-test('the token is optional, trimmed, and refused with control bytes or spaces', () => {
-  assert.equal(normalizeConfig({ zip: '10115' }).token, undefined);
-  assert.equal(normalizeConfig({ zip: '10115', token: '  abc.DEF-123  ' }).token, 'abc.DEF-123');
-  for (const token of ['a\r\nX-Evil: 1', 'a b', 'tab\tx', 'é', 'x'.repeat(513)]) {
-    const config = normalizeConfig({ zip: '10115', token });
-    assert.equal(config.token, undefined);
-    assert.equal(config.zip, '10115', 'the postcode still works');
-    assert.equal(config.error, 'token_invalid');
-  }
+test('a token field left over from an older version is ignored', () => {
+  assert.deepEqual(normalizeConfig({ zip: '10115', token: 'x' }), {
+    zip: '10115',
+    error: undefined,
+  });
 });

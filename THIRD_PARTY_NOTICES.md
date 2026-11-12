@@ -5,7 +5,8 @@
 The forecasts this integration reads come from the official Corrently API
 (`api.corrently.io/v2.0/gsi/prediction`), © STROMDAO GmbH, licensed under
 **CC BY-NC-SA 4.0** (<https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode.en>), as the API
-states in each answer. No data is shipped with the image; the test fixture
+states in each answer. The module adapts it (index rounded, levels low / medium / high computed from
+it); a commercial use needs a licence from Corrently. No data is shipped with the image; the test fixture
 (`test/fixtures/prediction-10115.json`) is one recorded answer, signatures removed, kept for the
 tests under the same licence.
 

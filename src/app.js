@@ -9,7 +9,6 @@
 // is written BEFORE every request.
 // -----------------------------------------------------------------------------
 
-import { createHash, randomBytes } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { createLogger } from '@gladysassistant/integration-sdk';
 import { normalizeConfig } from './config.js';
@@ -23,7 +22,6 @@ import {
   MAX_DATA_AGE,
   MAX_PAUSE,
   READ_INTERVAL,
-  ZIP_CHANGE_SPACING,
 } from './constants.js';
 import { fetchPrediction, retryAfterMs } from './corrently.js';
 import { buildDevice, buildStates, idsOf } from './devices.js';
@@ -38,11 +36,6 @@ const defaultTimers = { setTimeout, clearTimeout };
 const SKEW = 60_000;
 
 const isTime = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
-
-/** 8 bits of a salted hash: enough to tell "the same token", useless to guess one. */
-export function tokenFingerprint(salt, token) {
-  return createHash('sha256').update(`${salt}:${token}`).digest()[0];
-}
 
 /** The wait after `failures` failures in a row: 1 h, 2 h, 4 h, then 6 h. */
 export function backoff(failures) {
@@ -77,7 +70,6 @@ export class CorrentlyApp {
     this.readDueMono = undefined;
     this.lastStatus = undefined;
     this.lastError = undefined;
-    this.refusedToken = undefined;
     this.calendarWarned = false;
   }
 
@@ -187,15 +179,13 @@ export class CorrentlyApp {
   /** The state of /data, every field checked; a future date is invalid. */
   sanitize(raw, corrupt) {
     const wall = this.now();
-    const state = { attempt_at: undefined, attempt_zip: undefined, failures: 0, pause_until: 0 };
+    const state = { attempt_at: undefined, failures: 0, pause_until: 0 };
     if (corrupt) {
       // Unknown last attempt: as if it were now (never a read too early).
       state.attempt_at = wall;
-      state.attempt_zip = this.config.zip;
     }
     if (isTime(raw.attempt_at)) {
       state.attempt_at = raw.attempt_at > wall + SKEW ? wall : raw.attempt_at;
-      state.attempt_zip = typeof raw.attempt_zip === 'string' ? raw.attempt_zip : undefined;
     }
     if (Number.isInteger(raw.failures) && raw.failures > 0) {
       state.failures = Math.min(raw.failures, 16);
@@ -203,16 +193,6 @@ export class CorrentlyApp {
     if (isTime(raw.pause_until)) {
       // Never longer than the longest pause this module sets: beyond, invalid.
       state.pause_until = raw.pause_until > wall + MAX_PAUSE + SKEW ? 0 : raw.pause_until;
-    }
-    if (
-      raw.refused &&
-      typeof raw.refused.salt === 'string' &&
-      /^[0-9a-f]{32}$/.test(raw.refused.salt) &&
-      Number.isInteger(raw.refused.fp) &&
-      raw.refused.fp >= 0 &&
-      raw.refused.fp <= 255
-    ) {
-      state.refused = { salt: raw.refused.salt, fp: raw.refused.fp };
     }
     state.slots = [];
     if (
@@ -306,11 +286,8 @@ export class CorrentlyApp {
     const wall = this.now();
     let due = 0;
     if (isTime(state.attempt_at)) {
-      const spacing =
-        state.attempt_zip === this.config.zip || state.failures > 0
-          ? READ_INTERVAL
-          : ZIP_CHANGE_SPACING;
-      due = state.attempt_at + spacing;
+      // One read per hour, whatever the postcode.
+      due = state.attempt_at + READ_INTERVAL;
     }
     if (isTime(state.pause_until)) {
       due = Math.max(due, state.pause_until);
@@ -358,27 +335,6 @@ export class CorrentlyApp {
     return this.reading;
   }
 
-  /**
-   * The token to send, or undefined. A refused token is never sent again on
-   * its own. In this process the refused token itself is known, so any other
-   * token is tried; after a restart only its 8-bit fingerprint is, and a token
-   * with the same fingerprint (1 in 256) waits until it is changed again.
-   */
-  tokenToSend() {
-    const { token } = this.config;
-    if (!token) {
-      return undefined;
-    }
-    if (this.refusedToken !== undefined) {
-      return token === this.refusedToken ? undefined : token;
-    }
-    const refused = this.state?.refused;
-    if (refused && tokenFingerprint(refused.salt, token) === refused.fp) {
-      return undefined;
-    }
-    return token;
-  }
-
   async doRead(generation) {
     const { zip } = this.config;
     const state = this.state;
@@ -386,11 +342,7 @@ export class CorrentlyApp {
     this.readTimer = undefined;
     // Fair use across restarts: the attempt is on disk before the request.
     const attemptAt = this.now();
-    const saved = await this.store.save({
-      ...this.persisted(),
-      attempt_at: attemptAt,
-      attempt_zip: zip,
-    });
+    const saved = await this.store.save({ ...this.persisted(), attempt_at: attemptAt });
     if (generation !== this.generation) {
       return;
     }
@@ -400,47 +352,31 @@ export class CorrentlyApp {
       this.readTimer = this.timers.setTimeout(() => this.read(generation), DATA_RETRY);
       return;
     }
-    state.attempt_at = attemptAt;
-    state.attempt_zip = zip;
-    const token = this.tokenToSend();
     // The spacing counts from the request itself (the save above took time).
     state.attempt_at = Math.max(attemptAt, this.now());
     let result;
     let error;
     try {
-      result = await fetchPrediction({ zip, token });
+      result = await fetchPrediction({ zip });
     } catch (err) {
       error = err;
     }
-    if (generation !== this.generation) {
-      return;
-    }
+    // A configuration saved meanwhile waits for this read (doStop): the
+    // answer is kept and saved anyway, the new start reloads it if the
+    // postcode did not change. Only the publications are skipped.
     const wall = this.now();
     if (result) {
       const old = state.zip === zip ? state.slots : [];
       state.slots = mergeSlots(old, result.slots, wall);
       state.zip = zip;
-      state.fetched_at = wall;
+      // The date of the data: when Corrently computed it (`iat`; a cached
+      // copy can be hours old), never later than now.
+      const computed = result.computedAt;
+      state.fetched_at =
+        isTime(computed) && computed <= wall && computed >= wall - MAX_DATA_AGE ? computed : wall;
       state.failures = 0;
       state.pause_until = 0;
       this.lastError = undefined;
-      if (token) {
-        // Answered with a token: no refusal to remember any more.
-        state.refused = undefined;
-        this.refusedToken = undefined;
-      }
-    } else if (
-      error instanceof HttpError &&
-      (error.status === 401 || error.status === 403) &&
-      token
-    ) {
-      // The token, not the service: remembered (fingerprint only), never sent
-      // again on its own; the next read goes without it.
-      const salt = randomBytes(16).toString('hex');
-      state.refused = { salt, fp: tokenFingerprint(salt, token) };
-      this.refusedToken = token;
-      this.lastError = { message: T.tokenRefused };
-      this.logger.warn('Corrently refused the token: reading without it from now on');
     } else {
       state.failures += 1;
       let wait = backoff(state.failures);
@@ -473,10 +409,8 @@ export class CorrentlyApp {
     return {
       v: 1,
       attempt_at: s.attempt_at,
-      attempt_zip: s.attempt_zip,
       failures: s.failures,
       pause_until: s.pause_until,
-      refused: s.refused,
       zip: s.zip,
       fetched_at: s.fetched_at,
       slots: s.slots,
@@ -518,14 +452,13 @@ export class CorrentlyApp {
       }
       return;
     }
-    const tokenNote = this.config.error === 'token_invalid' ? T.tokenInvalid : undefined;
     await this.setStatus(
       true,
       T.ok({
         zip: this.config.zip,
         current: snap.current,
         fetchedAt: this.state.fetched_at,
-        error: this.lastError?.message ?? tokenNote,
+        error: this.lastError?.message,
       }),
     );
   }

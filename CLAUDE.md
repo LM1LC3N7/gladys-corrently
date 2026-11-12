@@ -38,7 +38,7 @@ src/http.js                       the only network code: timeout, bounded body, 
 src/forecast.js                   snapshot (now, next, best of 24 h), cache merge, calendar entries
 src/devices.js                    the device of a postcode and its states
 src/store.js                      /data/state.json: one operation at a time, bounded
-src/config.js                     postcode and optional token, normalized
+src/config.js                     postcode, normalized
 src/i18n.js                       status and button texts
 scripts/cover.mjs                 generates cover.png (plain Node)
 scripts/mutants.mjs               mutation run (copies the repo, baseline first)
@@ -51,8 +51,7 @@ test/                             node --test, fake Gladys of the SDK, fake fetc
 
 - One read per hour at most (Corrently fair use): the attempt time goes to /data BEFORE the request;
   /data unreadable or unwritable means no read. In-process waits use the monotonic clock.
-- The token never reaches a log line, a status, /data or the URL (Authorization header only); a refused
-  token leaves only an 8-bit salted fingerprint.
+- No token in v1 (the API reads it only from the URL): see TODO.md before adding one.
 - An unknown index is never published as 0; `energyprice` is never published (not a tariff).
 - The calendar key `green-power-index-de`, its granularity and its level bounds never change.
 

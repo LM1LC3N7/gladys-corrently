@@ -9,12 +9,11 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
-import { ACTION_TEST, CorrentlyApp, backoff, tokenFingerprint } from '../src/app.js';
+import { ACTION_TEST, CorrentlyApp, backoff } from '../src/app.js';
 import { CALENDAR_KEY, HOUR } from '../src/constants.js';
 import { FIXTURE_START, fixture, installFetch, json } from './helpers/fakeFetch.js';
 import { createClock } from './helpers/clock.js';
 
-const TOKEN = 'tok-SECRET-4711';
 const DEVICE = 'ext:corrently:zip:10115';
 const F = (key) => `${DEVICE}:${key}`;
 
@@ -65,6 +64,7 @@ function answerAt(start, { zip = '10115', count = 30 } = {}) {
     ...e,
     zip,
     timeStamp: e.timeStamp + shift,
+    iat: e.iat + shift,
     epochtime: e.epochtime + shift / 1000,
     timeframe: { start: e.timeframe.start + shift, end: e.timeframe.end + shift },
   }));
@@ -186,7 +186,6 @@ test('the attempt is on disk before the request leaves', async (t) => {
   await ctx.app.start({ zip: '10115' });
   await ctx.app.reading;
   assert.ok(seen.attempt_at >= START);
-  assert.equal(seen.attempt_zip, '10115');
 });
 
 test('a future attempt date in /data is invalid: the full hour is waited', async (t) => {
@@ -306,86 +305,6 @@ test('429 Retry-After longer than the backoff is obeyed', async (t) => {
   assert.equal(calls().length, 2);
 });
 
-test('a refused token: fingerprint only, next reads without it, a new token is tried', async (t) => {
-  let status = 401;
-  const ctx = setup(t, {
-    config: { zip: '10115', token: TOKEN },
-    routes: [
-      [
-        /gsi\/prediction/,
-        (call) =>
-          call.init.headers.Authorization && status === 401
-            ? new Response('', { status: 401 })
-            : json(answerAt(Math.floor(ctx.clock.now() / HOUR) * HOUR)),
-      ],
-    ],
-  });
-  const { app, gladys, clock, dataDir, logger, calls } = ctx;
-  await app.start({ zip: '10115', token: TOKEN });
-  await app.reading;
-  assert.equal(calls()[0].init.headers.Authorization, `Bearer ${TOKEN}`);
-  const data = readFileSync(join(dataDir, 'state.json'), 'utf8');
-  assert.ok(!data.includes(TOKEN) && !data.includes('SECRET'));
-  const { refused } = JSON.parse(data);
-  assert.ok(refused.fp >= 0 && refused.fp <= 255, '8 bits at most');
-  assert.match(gladys.fake.connectionStatus.message.en, /refused the token/);
-  await clock.advance(HOUR + 1_000);
-  assert.equal(calls().length, 2);
-  assert.equal(calls()[1].init.headers.Authorization, undefined, 'not sent again');
-  // A new token whose 8-bit fingerprint collides is still tried in this process.
-  const stored = readData(dataDir);
-  stored.refused.fp = tokenFingerprint(stored.refused.salt, 'another-token');
-  writeFileSync(join(dataDir, 'state.json'), JSON.stringify(stored));
-  status = 200;
-  await app.start({ zip: '10115', token: 'another-token' });
-  await clock.advance(HOUR + 1_000);
-  assert.equal(calls().at(-1).init.headers.Authorization, 'Bearer another-token');
-  assert.equal(readData(dataDir).refused, undefined, 'cleared by the success');
-  await app.stop();
-  for (const line of [...logger.lines, ...gladys.fake.connectionStatuses.map(JSON.stringify)]) {
-    assert.ok(!line.includes(TOKEN), line);
-  }
-});
-
-test('after a restart, the fingerprint alone holds a refused token back', async (t) => {
-  const first = setup(t, {
-    config: { zip: '10115', token: TOKEN },
-    routes: [[/gsi\/prediction/, () => new Response('', { status: 403 })]],
-  });
-  await first.app.start({ zip: '10115', token: TOKEN });
-  await first.app.reading;
-  await first.app.stop();
-  const clock = createClock(START + 2 * HOUR);
-  const second = setup(t, { dataDir: first.dataDir, clock });
-  await second.app.start({ zip: '10115', token: TOKEN });
-  await second.app.reading;
-  assert.equal(second.calls().length, 1);
-  assert.equal(second.calls()[0].init.headers.Authorization, undefined);
-});
-
-test('8-bit fingerprints cannot single out a token', async () => {
-  const salt = '0123456789abcdef0123456789abcdef';
-  const target = tokenFingerprint(salt, TOKEN);
-  let matches = 0;
-  for (let i = 0; i < 4096; i += 1) {
-    if (tokenFingerprint(salt, `guess-${i}`) === target) {
-      matches += 1;
-    }
-  }
-  assert.ok(matches > 4, `about 16 of 4096 guesses collide, got ${matches}`);
-});
-
-test('401 without a token is a service failure, not a refused token', async (t) => {
-  const { app, gladys, dataDir } = setup(t, {
-    routes: [[/gsi\/prediction/, () => new Response('', { status: 401 })]],
-  });
-  await app.start({ zip: '10115' });
-  await app.reading;
-  assert.equal(readData(dataDir).failures, 1);
-  assert.equal(readData(dataDir).refused, undefined);
-  assert.match(gladys.fake.connectionStatus.message.en, /HTTP 401/);
-});
-
 test('an empty forecast publishes nothing and says so', async (t) => {
   const { app, gladys } = setup(t, {
     routes: [[/gsi\/prediction/, () => json({ forecast: [], location: {} })]],
@@ -432,7 +351,7 @@ test('the hourly tick follows the slots without reading', async (t) => {
   assert.equal(calls().length, 1);
 });
 
-test('changing the postcode: new device, read after two minutes, never sooner', async (t) => {
+test('changing the postcode: new device, still one read per hour', async (t) => {
   const { app, gladys, clock, calls } = setup(t);
   await app.start({ zip: '10115' });
   await app.reading;
@@ -441,14 +360,13 @@ test('changing the postcode: new device, read after two minutes, never sooner', 
   await clock.settle();
   assert.equal(gladys.fake.discoveredDevices[0].external_id, 'ext:corrently:zip:01067');
   assert.equal(calls().length, 1);
-  await clock.advance(2 * 60_000 - 5_000);
-  assert.equal(calls().length, 1, 'not before two minutes');
-  await clock.advance(6_000);
+  await app.start({ zip: '10115' });
+  await app.start({ zip: '01067' });
+  await clock.advance(HOUR - 5_000);
+  assert.equal(calls().length, 1, 'not before the hour, whatever the postcodes');
+  await clock.advance(10_000);
   assert.equal(calls().length, 2);
   assert.equal(calls()[1].params.zip, '01067');
-  await app.start({ zip: '10115' });
-  await clock.advance(60_000);
-  assert.equal(calls().length, 2, 'two minutes between postcodes');
 });
 
 test('getConfig failing in connected: retried with a status until it works', async (t) => {
@@ -508,7 +426,7 @@ test('every status and button text is an { en, fr } object (Gladys refuses a str
     routes: [[/gsi\/prediction/, () => new Response('', { status: 503 })]],
   });
   await app.start({});
-  await app.start({ zip: '10115', token: 'bad token' });
+  await app.start({ zip: '10115' });
   await app.reading;
   await clock.advance(HOUR + 1_000);
   const texts = [
@@ -521,4 +439,137 @@ test('every status and button text is an { en, fr } object (Gladys refuses a str
     assert.ok(text.en?.trim() && text.fr?.trim(), JSON.stringify(text));
     assert.deepEqual(Object.keys(text).sort(), ['en', 'fr']);
   }
+});
+
+test('a pause after a 429 holds across a restart', async (t) => {
+  const first = setup(t, {
+    routes: [
+      [
+        /gsi\/prediction/,
+        () => new Response('', { status: 429, headers: { 'retry-after': String(6 * 3600) } }),
+      ],
+    ],
+  });
+  await first.app.start({ zip: '10115' });
+  await first.app.reading;
+  await first.app.stop();
+  const clock = createClock(START + 2 * HOUR);
+  const second = setup(t, { dataDir: first.dataDir, clock });
+  await second.app.start({ zip: '10115' });
+  await second.app.reading;
+  await clock.advance(4 * HOUR - 10_000);
+  assert.equal(second.calls().length, 0, 'the 6 h pause is still running');
+  await clock.advance(20_000);
+  assert.equal(second.calls().length, 1);
+});
+
+test('the backoff after 5xx failures holds across a restart', async (t) => {
+  const first = setup(t, {
+    routes: [[/gsi\/prediction/, () => new Response('', { status: 502 })]],
+  });
+  await first.app.start({ zip: '10115' });
+  await first.app.reading;
+  await first.clock.advance(HOUR + 1_000);
+  assert.equal(first.calls().length, 2);
+  assert.equal(readData(first.dataDir).failures, 2);
+  await first.app.stop();
+  // Second failure at about 1 h: the next read is due 2 h later, at about 3 h.
+  const clock = createClock(START + 2 * HOUR);
+  const second = setup(t, { dataDir: first.dataDir, clock });
+  await second.app.start({ zip: '10115' });
+  await second.app.reading;
+  await clock.advance(HOUR - 10_000);
+  assert.equal(second.calls().length, 0, 'still in the 2 h backoff');
+  await clock.advance(20_000);
+  assert.equal(second.calls().length, 1);
+});
+
+test('a configuration saved during a read keeps its answer', async (t) => {
+  let release;
+  const gate = new Promise((resolve) => (release = resolve));
+  const ctx = setup(t, {
+    routes: [
+      [
+        /gsi\/prediction/,
+        async () => {
+          await gate;
+          return json(answerAt(Math.floor(START / HOUR) * HOUR));
+        },
+      ],
+    ],
+  });
+  const { app, gladys, calls, dataDir } = ctx;
+  await app.start({ zip: '10115' });
+  for (let i = 0; i < 500 && calls().length === 0; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  assert.equal(calls().length, 1);
+  const restart = app.start({ zip: '10115' });
+  release();
+  await restart;
+  assert.equal(calls().length, 1, 'no second read');
+  assert.equal(readData(dataDir).slots.length, 30, 'the answer is saved');
+  assert.ok(Number.isFinite(gladys.fake.lastState(F('gsi'))), 'and published by the new start');
+  assert.equal(gladys.fake.connectionStatus.connected, true);
+});
+
+test('the calendar, end to end: every slot of the answer, two half hours, its level', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  await app.start({ zip: '10115' });
+  await app.reading;
+  const body = answerAt(FIXTURE_START);
+  const level = (gsi) => (gsi >= 67 ? 'high' : gsi >= 34 ? 'medium' : 'low');
+  const expected = body.forecast.flatMap((e) => [
+    { starts_at: new Date(e.timeStamp).toISOString(), value: level(e.gsi) },
+    { starts_at: new Date(e.timeStamp + HOUR / 2).toISOString(), value: level(e.gsi) },
+  ]);
+  const stored = gladys.fake.energyCalendars[CALENDAR_KEY].map((e) => ({
+    starts_at: new Date(e.starts_at).toISOString(),
+    value: e.value,
+  }));
+  assert.deepEqual(stored, expected);
+  // The next read upserts: no duplicate, the new hours added.
+  await clock.advance(HOUR + 1_000);
+  const after = gladys.fake.energyCalendars[CALENDAR_KEY];
+  assert.equal(new Set(after.map((e) => e.starts_at)).size, after.length);
+  assert.equal(after.length, 62);
+});
+
+test('the data date is when Corrently computed it, never later than the read', async (t) => {
+  const computed = START - 3 * HOUR;
+  const { app, dataDir } = setup(t, {
+    routes: [
+      [
+        /gsi\/prediction/,
+        () => {
+          const body = answerAt(FIXTURE_START);
+          body.forecast = body.forecast.map((e) => ({ ...e, iat: computed }));
+          body.forecast[3].iat = START + 10 * HOUR; // a future one is ignored as oldest
+          return json(body);
+        },
+      ],
+    ],
+  });
+  await app.start({ zip: '10115' });
+  await app.reading;
+  assert.equal(readData(dataDir).fetched_at, computed);
+});
+
+test('an iat in the future is not the data date: the read time is', async (t) => {
+  const { app, dataDir } = setup(t, {
+    routes: [
+      [
+        /gsi\/prediction/,
+        () => {
+          const body = answerAt(FIXTURE_START);
+          body.forecast = body.forecast.map((e) => ({ ...e, iat: START + 10 * HOUR }));
+          return json(body);
+        },
+      ],
+    ],
+  });
+  await app.start({ zip: '10115' });
+  await app.reading;
+  const { fetched_at: date } = readData(dataDir);
+  assert.ok(date >= START && date < START + 60_000, String(date - START));
 });

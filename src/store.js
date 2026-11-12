@@ -1,7 +1,6 @@
 // -----------------------------------------------------------------------------
-// /data/state.json: the forecast cache, the time of the last read attempt,
-// the pause after failures and the fingerprint of a refused token. Never the
-// token itself.
+// /data/state.json: the forecast cache, the time of the last read attempt
+// and the pause after failures.
 //
 // One operation at a time; each one bounded in time. An unreadable /data is
 // not an empty one: `load()` says so and the caller retries on its own timer.

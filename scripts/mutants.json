@@ -6,12 +6,6 @@
     "to": "export const READ_INTERVAL = HOUR / 2;"
   },
   {
-    "name": "zip spacing removed",
-    "file": "src/constants.js",
-    "from": "export const ZIP_CHANGE_SPACING = 2 * 60_000;",
-    "to": "export const ZIP_CHANGE_SPACING = 0;"
-  },
-  {
     "name": "attempt not saved before the request",
     "file": "src/app.js",
     "from": "    if (!saved) {",
@@ -66,24 +60,6 @@
     "to": "wait = wait + 0;"
   },
   {
-    "name": "refused token sent again",
-    "file": "src/app.js",
-    "from": "if (refused && tokenFingerprint(refused.salt, token) === refused.fp) {",
-    "to": "if (false) {"
-  },
-  {
-    "name": "refused token in memory ignored",
-    "file": "src/app.js",
-    "from": "    if (this.refusedToken !== undefined) {",
-    "to": "    if (false) {"
-  },
-  {
-    "name": "401 without token taken as refusal",
-    "file": "src/app.js",
-    "from": "      (error.status === 401 || error.status === 403) &&\n      token\n",
-    "to": "      (error.status === 401 || error.status === 403)\n"
-  },
-  {
     "name": "old forecast used",
     "file": "src/app.js",
     "from": "if (wall - state.fetched_at > MAX_DATA_AGE) {",
@@ -114,12 +90,6 @@
     "to": "    if (false) {"
   },
   {
-    "name": "token in the URL instead of the header",
-    "file": "src/http.js",
-    "from": "      headers.Authorization = `Bearer ${token}`;",
-    "to": "      url = `${url}&token=${token}`;"
-  },
-  {
     "name": "best of 24 with a missing hour",
     "file": "src/forecast.js",
     "from": "  if (!complete) {",
@@ -144,21 +114,51 @@
     "to": "  ['high', 66],"
   },
   {
-    "name": "token control bytes accepted",
-    "file": "src/config.js",
-    "from": "const TOKEN = /^[\\x21-\\x7e]{1,512}$/;",
-    "to": "const TOKEN = /^.{1,512}$/s;"
-  },
-  {
     "name": "getConfig not retried",
     "file": "src/app.js",
     "from": "      this.configTimer = this.timers.setTimeout(() => this.connected(), delay);",
     "to": ""
   },
   {
-    "name": "refusal kept after a token success",
+    "name": "pause_until not persisted",
     "file": "src/app.js",
-    "from": "        state.refused = undefined;\n        this.refusedToken = undefined;\n",
-    "to": ""
+    "from": "      pause_until: s.pause_until,",
+    "to": "      pause_until: 0,"
+  },
+  {
+    "name": "failures not persisted",
+    "file": "src/app.js",
+    "from": "      failures: s.failures,",
+    "to": "      failures: 0,"
+  },
+  {
+    "name": "answer dropped when the config is saved during a read",
+    "file": "src/app.js",
+    "from": "    const wall = this.now();\n    if (result) {",
+    "to": "    const wall = this.now();\n    if (generation !== this.generation) {\n      return;\n    }\n    if (result) {"
+  },
+  {
+    "name": "data date = read time",
+    "file": "src/app.js",
+    "from": "isTime(computed) && computed <= wall && computed >= wall - MAX_DATA_AGE ? computed : wall",
+    "to": "wall"
+  },
+  {
+    "name": "future iat accepted",
+    "file": "src/app.js",
+    "from": "computed <= wall && computed >= wall - MAX_DATA_AGE",
+    "to": "computed >= wall - MAX_DATA_AGE"
+  },
+  {
+    "name": "spacing shortened for another postcode",
+    "file": "src/app.js",
+    "from": "      due = state.attempt_at + READ_INTERVAL;",
+    "to": "      due = state.attempt_at + (this.state.zip === this.config.zip ? READ_INTERVAL : 120_000);"
+  },
+  {
+    "name": "an Authorization header sent",
+    "file": "src/http.js",
+    "from": "    const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json' };",
+    "to": "    const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json', Authorization: 'Bearer x' };"
   }
 ]

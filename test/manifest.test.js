@@ -72,20 +72,28 @@ test('every text is in English and French; no secret wording that lies', () => {
   }
 });
 
-test('the configuration: postcode as text, optional secret token without default', () => {
+test('the configuration: the postcode as text, nothing secret', () => {
   const fields = Object.fromEntries(manifest.config_schema.map((f) => [f.key, f]));
   for (const key of Object.keys(fields)) {
     assert.doesNotMatch(key, /^gladys_/);
   }
   assert.equal(fields.zip.type, 'string', 'a number would drop the leading zero');
   assert.equal(fields.zip.required, true);
-  assert.equal(fields.token.type, 'secret');
-  assert.equal(fields.token.required, false);
-  assert.equal(fields.token.default, undefined);
-  assert.equal(fields.token.placeholder, undefined);
+  assert.equal(fields.token, undefined, 'no token in v1 (the API reads it only from the URL)');
+  assert.ok(manifest.config_schema.every((f) => f.type !== 'secret'));
   for (const field of manifest.config_schema.filter((f) => f.type === 'section')) {
     assert.equal(field.default, undefined);
     assert.equal(field.required, undefined);
+  }
+});
+
+test('the data licence: link, adapted, commercial use', () => {
+  const intro = manifest.config_schema[0];
+  assert.ok(intro.links.some((l) => l.url.includes('creativecommons.org/licenses/by-nc-sa/4.0')));
+  assert.match(intro.description.en, /adapted/);
+  assert.match(intro.description.en, /commercial use needs a licence/);
+  for (const file of ['docs/en.md', 'docs/fr.md', 'README.md']) {
+    assert.match(read(file), /creativecommons\.org\/licenses\/by-nc-sa\/4\.0/, file);
   }
 });
 

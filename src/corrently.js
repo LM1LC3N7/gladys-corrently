@@ -17,7 +17,7 @@ export class AnswerError extends Error {
   }
 }
 
-/** The URL of a postcode (the token never goes in it). */
+/** The URL of a postcode. */
 export function predictionUrl(zip) {
   const url = new URL(API_URL);
   url.searchParams.set('zip', zip);
@@ -67,10 +67,22 @@ export function parsePrediction(body, zip) {
   return [...slots.values()].sort((a, b) => a.t - b.t);
 }
 
-/** Read the forecast of a postcode: `{ slots, date }`. */
-export async function fetchPrediction({ zip, token }) {
-  const { body, date } = await getJson(predictionUrl(zip), { token });
-  return { slots: parsePrediction(body, zip), date };
+/** When Corrently computed the forecast: the oldest `iat` (ms), or undefined. */
+export function computedAt(body) {
+  let oldest;
+  for (const entry of Array.isArray(body?.forecast) ? body.forecast.slice(0, MAX_SLOTS) : []) {
+    const iat = strictNumber(entry?.iat);
+    if (iat !== undefined && iat > 0 && (oldest === undefined || iat < oldest)) {
+      oldest = iat;
+    }
+  }
+  return oldest;
+}
+
+/** Read the forecast of a postcode: `{ slots, date, computedAt }`. */
+export async function fetchPrediction({ zip }) {
+  const { body, date } = await getJson(predictionUrl(zip));
+  return { slots: parsePrediction(body, zip), date, computedAt: computedAt(body) };
 }
 
 /**

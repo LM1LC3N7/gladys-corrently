@@ -14,5 +14,5 @@ uses [semantic versioning](https://semver.org/).
   hour).
 - `countries: ["DE"]` in the manifest (German postcodes only), Gladys 5.3.0 or
   later.
-- One read per hour at most (Corrently fair use), kept across restarts; optional
-  token.
+- One read per hour at most (Corrently fair use), kept across restarts and
+  postcode changes; no token needed.

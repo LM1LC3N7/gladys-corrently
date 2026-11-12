@@ -62,19 +62,15 @@ async function readBounded(response, limit, controller) {
 }
 
 /**
- * GET a JSON document. `token` goes in an Authorization header, never in the
- * URL (so never in a log line). Throws HttpError on a non-2xx status (with
+ * GET a JSON document. Throws HttpError on a non-2xx status (with
  * the `Retry-After` and `Date` headers), BodyError on an oversized or
  * unreadable body; a timeout or a network failure rejects as is.
  */
-export async function getJson(url, { token, timeout = HTTP_TIMEOUT, limit = MAX_BODY_BYTES } = {}) {
+export async function getJson(url, { timeout = HTTP_TIMEOUT, limit = MAX_BODY_BYTES } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error('timeout')), Math.max(1, timeout));
   try {
     const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json' };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
     const response = await fetchImpl(url, { headers, signal: controller.signal });
     if (!response.ok) {
       controller.abort();

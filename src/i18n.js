@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------------
 // The texts of the connection status and of the test button. Every text is a
 // { en, fr } object: Gladys picks the user's language (a plain string is
-// refused by setConnectionStatus). Never a token, never a raw answer.
+// refused by setConnectionStatus). Never a raw answer.
 // -----------------------------------------------------------------------------
 
 import { CALENDAR_TIMEZONE } from './constants.js';
@@ -43,10 +43,6 @@ const CONFIG_ERRORS = {
     en: 'The postcode must be a German postcode of five digits',
     fr: 'Le code postal doit être un code postal allemand de cinq chiffres',
   },
-  token_invalid: {
-    en: 'The token holds characters a token cannot have',
-    fr: 'Le jeton contient des caractères impossibles dans un jeton',
-  },
 };
 
 // Problems, without any value from the user or the answer but a status code.
@@ -67,11 +63,6 @@ export const T = {
     en: 'The /data folder cannot be written: the read waits (fair use)',
     fr: 'Le dossier /data ne peut être écrit : la lecture attend (usage raisonnable)',
   },
-  tokenRefused: {
-    en: 'Corrently refused the token: reading without it until you change it',
-    fr: 'Corrently a refusé le jeton : lecture sans lui jusqu’à ce que vous le changiez',
-  },
-  tokenInvalid: CONFIG_ERRORS.token_invalid,
   waiting: (next) => ({
     en: `Waiting for the first read, allowed by the fair-use policy at ${at(next, 'en')}`,
     fr: `En attente de la première lecture, permise par l’usage raisonnable à ${at(next, 'fr')}`,
@@ -86,10 +77,10 @@ export const T = {
   }),
   ok: ({ zip, current, fetchedAt, error }) => ({
     en:
-      `GrünstromIndex ${zip}: ${current} now (forecast read ${at(fetchedAt, 'en')})` +
+      `GrünstromIndex ${zip}: ${current} now (forecast computed ${at(fetchedAt, 'en')})` +
       (error ? `. Last problem: ${problem(error, 'en')}` : ''),
     fr:
-      `GrünstromIndex ${zip} : ${current} maintenant (prévision lue le ${at(fetchedAt, 'fr')})` +
+      `GrünstromIndex ${zip} : ${current} maintenant (prévision calculée le ${at(fetchedAt, 'fr')})` +
       (error ? `. Dernier problème : ${problem(error, 'fr')}` : ''),
   }),
   report: ({ zip, snap, fetchedAt, error, nextRead }) =>
@@ -102,8 +93,8 @@ export const T = {
       } else {
         lines.push(
           fr
-            ? `GrünstromIndex ${zip}, prévision lue le ${at(fetchedAt, lang)}.`
-            : `GrünstromIndex ${zip}, forecast read ${at(fetchedAt, lang)}.`,
+            ? `GrünstromIndex ${zip}, prévision calculée le ${at(fetchedAt, lang)}.`
+            : `GrünstromIndex ${zip}, forecast computed ${at(fetchedAt, lang)}.`,
         );
         lines.push(
           fr

@@ -1,7 +1,13 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAX_SLOTS, USER_AGENT } from '../src/constants.js';
-import { AnswerError, fetchPrediction, parsePrediction, retryAfterMs } from '../src/corrently.js';
+import {
+  AnswerError,
+  computedAt,
+  fetchPrediction,
+  parsePrediction,
+  retryAfterMs,
+} from '../src/corrently.js';
 import { getJson } from '../src/http.js';
 import { FIXTURE_START, fixture, installFetch, json } from './helpers/fakeFetch.js';
 
@@ -71,18 +77,22 @@ test('Retry-After: seconds, or a date against the answer Date header', () => {
   assert.equal(retryAfterMs(undefined), undefined);
 });
 
-test('the token travels in a header, never in the URL; own User-Agent', async () => {
+test('no token, no Authorization header; own User-Agent', async () => {
   fake = installFetch([[/gsi\/prediction/, () => json(fixture('prediction-10115.json'))]]);
-  const { slots } = await fetchPrediction({ zip: '10115', token: 'sekret-token' });
+  const { slots, computedAt: at } = await fetchPrediction({ zip: '10115' });
   assert.equal(slots.length, 30);
+  assert.ok(at > 0);
   const [call] = fake.calls;
-  assert.equal(call.params.zip, '10115');
-  assert.ok(!call.url.includes('sekret'));
-  assert.equal(call.init.headers.Authorization, 'Bearer sekret-token');
+  assert.deepEqual(Object.keys(call.params), ['zip']);
+  assert.equal(call.init.headers.Authorization, undefined);
   assert.equal(call.init.headers['User-Agent'], USER_AGENT);
   assert.match(USER_AGENT, /^gladys-corrently\/0\.1\.0 \(\+https:\/\/github\.com\/LM1LC3N7\//);
-  await fetchPrediction({ zip: '10115' });
-  assert.equal(fake.calls[1].init.headers.Authorization, undefined);
+});
+
+test('computedAt: the oldest numeric iat, nothing else', () => {
+  assert.equal(computedAt({ forecast: [{ iat: 5 }, { iat: 3 }, { iat: '1' }, { iat: -1 }] }), 3);
+  assert.equal(computedAt({ forecast: [{ iat: null }] }), undefined);
+  assert.equal(computedAt({}), undefined);
 });
 
 test('an oversized answer is cut before it is read whole', async () => {

@@ -6,24 +6,21 @@
 export const VERSION = '0.1.0';
 export const USER_AGENT = `gladys-corrently/${VERSION} (+https://github.com/LM1LC3N7/gladys-corrently)`;
 
-// The official GrünstromIndex forecast: hourly slots for about three days,
-// per German postcode. Works without a token ("fair use"); a free token from
-// console.corrently.io is sent as a Bearer header when the user gives one.
+// The official GrünstromIndex forecast: hourly slots for about five days,
+// per German postcode, read without a token ("fair use").
 export const API_URL = 'https://api.corrently.io/v2.0/gsi/prediction';
 
-// Answers: about 40 KB for 72 slots. Anything beyond is cut before it is read
+// Answers: about 61 KB for 120 slots. Anything beyond is cut before it is read
 // whole, and a read never lasts more than the timeout.
 export const MAX_BODY_BYTES = 1024 * 1024;
 export const HTTP_TIMEOUT = 15_000;
 export const MAX_SLOTS = 500;
 
 // Schedule. Every read (failed or not) is at least READ_INTERVAL after the
-// previous one, restarts included (the attempt time is in /data first).
-// After a postcode change, the first read of the new place waits only
-// ZIP_CHANGE_SPACING after the previous attempt.
+// previous one, restarts and postcode changes included (the attempt time is
+// in /data first).
 export const HOUR = 60 * 60_000;
 export const READ_INTERVAL = HOUR;
-export const ZIP_CHANGE_SPACING = 2 * 60_000;
 // Failures double the wait, from one hour to six; a 429 Retry-After longer
 // than that is still obeyed, up to MAX_PAUSE.
 export const MAX_BACKOFF = 6 * HOUR;
