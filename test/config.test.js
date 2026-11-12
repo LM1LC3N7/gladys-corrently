@@ -1,33 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeConfig, DEFAULT_CONFIG } from '../src/config.js';
+import { normalizeConfig } from '../src/config.js';
 
-test('normalizeConfig returns the defaults when called with no argument', () => {
-  assert.deepEqual(normalizeConfig(), DEFAULT_CONFIG);
+test('a German postcode keeps its leading zero', () => {
+  assert.equal(normalizeConfig({ zip: '01067' }).zip, '01067');
+  assert.equal(normalizeConfig({ zip: ' 69256 ' }).zip, '69256');
+  assert.equal(normalizeConfig({ zip: 69256 }).zip, '69256');
 });
 
-test('normalizeConfig keeps user values over the defaults', () => {
-  const config = normalizeConfig({ latitude: 45.5, longitude: -73.6, unit: 'fahrenheit' });
-  assert.equal(config.latitude, 45.5);
-  assert.equal(config.longitude, -73.6);
-  assert.equal(config.unit, 'fahrenheit');
+test('a missing or invalid postcode is an error, never echoed', () => {
+  assert.equal(normalizeConfig({}).error, 'zip_missing');
+  assert.equal(normalizeConfig({ zip: '' }).error, 'zip_missing');
+  for (const zip of ['1234', '123456', '12a45', '00000', '101 15', '10115&x=1', 1067]) {
+    const config = normalizeConfig({ zip });
+    assert.equal(config.zip, undefined, String(zip));
+    assert.equal(config.error, 'zip_invalid', String(zip));
+  }
 });
 
-test('normalizeConfig coerces numeric strings coming from a form', () => {
-  const config = normalizeConfig({ latitude: '48.8', longitude: '2.3', poll_frequency: '600' });
-  assert.equal(config.latitude, 48.8);
-  assert.equal(config.longitude, 2.3);
-  assert.equal(config.poll_frequency, 600);
-  assert.equal(typeof config.poll_frequency, 'number');
-});
-
-test('normalizeConfig falls back to the default for a missing numeric field', () => {
-  const config = normalizeConfig({ unit: 'celsius' });
-  assert.equal(config.poll_frequency, DEFAULT_CONFIG.poll_frequency);
-});
-
-test('GLADYS_PREFER_LOCAL defaults to true and only an explicit false disables it', () => {
-  assert.equal(normalizeConfig().GLADYS_PREFER_LOCAL, true);
-  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: true }).GLADYS_PREFER_LOCAL, true);
-  assert.equal(normalizeConfig({ GLADYS_PREFER_LOCAL: false }).GLADYS_PREFER_LOCAL, false);
+test('the token is optional, trimmed, and refused with control bytes or spaces', () => {
+  assert.equal(normalizeConfig({ zip: '10115' }).token, undefined);
+  assert.equal(normalizeConfig({ zip: '10115', token: '  abc.DEF-123  ' }).token, 'abc.DEF-123');
+  for (const token of ['a\r\nX-Evil: 1', 'a b', 'tab\tx', 'é', 'x'.repeat(513)]) {
+    const config = normalizeConfig({ zip: '10115', token });
+    assert.equal(config.token, undefined);
+    assert.equal(config.zip, '10115', 'the postcode still works');
+    assert.equal(config.error, 'token_invalid');
+  }
 });

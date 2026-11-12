@@ -1,45 +1,37 @@
 // -----------------------------------------------------------------------------
-// Integration configuration.
-//
-// The configuration is filled in by the user in Gladys, from the `config_schema`
-// declared in `gladys-assistant-integration.json`. The SDK fetches it for you
-// (`gladys.getConfig()`) and notifies you of every change through
-// `gladys.onConfigUpdated()`.
-//
-// This module only provides defaults and normalizes the received object, so the
-// rest of the code never has to deal with `undefined`.
+// The configuration the user fills (manifest `config_schema`), normalized.
+// The token is never logged, stored in /data or shown back: only its
+// presence and a short salted fingerprint (see app.js) leave this module.
 // -----------------------------------------------------------------------------
 
-// Defaults: they MUST stay consistent with the `default` values declared in the
-// `config_schema` of the manifest.
-export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
-};
+// German postcodes: five digits, leading zero kept (01067 Dresden), so the
+// form field is a string, never a number.
+const ZIP = /^\d{5}$/;
+// Printable ASCII only: no space, no CR/LF or control byte in a header.
+const TOKEN = /^[\x21-\x7e]{1,512}$/;
 
 /**
- * Merge the user config with the defaults.
- * @param {Record<string, unknown>} raw config returned by the SDK
+ * `{ zip, token, error }`: `zip` undefined when missing or invalid, `token`
+ * undefined when empty; `error` names the field to fix (never its value).
  */
 export function normalizeConfig(raw = {}) {
-  return {
-    ...DEFAULT_CONFIG,
-    ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
-  };
+  const zipText = typeof raw.zip === 'string' || typeof raw.zip === 'number' ? String(raw.zip) : '';
+  const zip = zipText.trim();
+  const tokenText = typeof raw.token === 'string' ? raw.token.trim() : '';
+  const config = { zip: undefined, token: undefined, error: undefined };
+  if (!zip) {
+    config.error = 'zip_missing';
+  } else if (!ZIP.test(zip) || zip === '00000') {
+    config.error = 'zip_invalid';
+  } else {
+    config.zip = zip;
+  }
+  if (tokenText) {
+    if (TOKEN.test(tokenText)) {
+      config.token = tokenText;
+    } else {
+      config.error ??= 'token_invalid';
+    }
+  }
+  return config;
 }

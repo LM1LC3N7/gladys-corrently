@@ -1,61 +1,62 @@
-# Demo Devices Template
+# Corrently GrünstromIndex
 
-This is the user documentation of the integration. Gladys re-hosts this file
-and shows a permanent **Documentation** link to it in the Configuration screen
-(in the user's language, with English as the fallback) — it is when
-configuring that the user needs it most. Keep the short onboarding hints in
-the `section` blocks of the manifest `config_schema`; put the long
-step-by-step (screenshots, troubleshooting…) here.
+Unofficial connector, not affiliated with Corrently or STROMDAO. **Never tested with a real Gladys
+installation yet**: it was tested against the live Corrently API and a simulated Gladys.
+
+The GrünstromIndex (green power index) tells, from 0 to 100, how much of the power around a German
+postcode comes from renewables, hour by hour, about three days ahead. Use it to run the washing
+machine, the heat pump or the car charge in the greenest hours.
+
+## Setup
+
+1. Enter your **German postcode** (five digits, leading zero included, e.g. `01067`).
+2. Optional: a free **token** from [console.corrently.io](https://console.corrently.io/). Corrently
+   announces the end of the access without token; with one, the module goes on working. The token is
+   kept by Gladys in its database, never shown again, and only sent to Corrently (in an
+   `Authorization` header, not in the address).
+3. Save, then open the device `GrünstromIndex <postcode>` in the integration's devices page.
 
 ## What you get
 
-Six demo devices show up after installation: a weather station (real data
-from Open-Meteo), a switch, a dimmable light, a smart plug with power
-metering, a motion sensor and a camera.
+| Feature                       | Meaning                                                              |
+| ----------------------------- | -------------------------------------------------------------------- |
+| GrünstromIndex                | The index of the current hour (0-100)                                |
+| GrünstromIndex next hour      | The index of the next hour                                           |
+| GrünstromIndex best of 24 h   | The highest index of the 24 hours starting with the current one      |
+| Hours until the greenest hour | Hours from now to that greenest hour (0: now; the earliest on a tie) |
 
-## Configuration
+An hour the forecast does not cover stays unknown (no value is published); the best of 24 h stays
+unknown unless all 24 hours are known. A forecast older than 72 hours is not used.
 
-1. Open the **Configuration** tab of the integration.
-2. Set the **latitude** and **longitude** the demo weather station should
-   observe (they default to Paris), and pick your temperature unit.
-   The **refresh interval** sets how often the weather station and the
-   plug's power are read: every 5 minutes by default, every minute at most.
-3. Save: the devices appear in the **Discovery** tab, ready to be added.
+**Energy calendar** `green-power-index-de`: every half hour gets a level, `low` (index 0-33),
+`medium` (34-66) or `high` (67-100), up to seven days ahead. A tariff template of the Gladys energy
+contracts (community catalogue or another integration) can read it. These bounds never change.
 
-The **Prefer the local connection** toggle drives the demo plug: it reports
-the channel it actually uses as a badge (local or cloud), with an orange dot
-when it runs degraded (local refused, cloud fallback).
+## Reads and fair use
 
-## Actions
+- One read per hour at most, as the Corrently fair-use policy asks. The time of each attempt is saved
+  in `/data` before the request, so a restart or a configuration save does not read sooner. Changing
+  the postcode allows a read two minutes after the previous one.
+- The **Read the forecast** button reads only when the last read is an hour old; otherwise it shows the
+  forecast in memory and the time of the next read.
+- After a failure, the wait doubles: 1 h, 2 h, 4 h, then 6 h. A `429` answer with a longer
+  `Retry-After` is obeyed (24 h at most).
+- If Corrently answers `401`/`403` while a token is sent, the token is considered refused: only an
+  8-bit salted fingerprint is kept in `/data`, it is not sent again, and the reads go on without it until
+  you enter another token. (After a restart only the fingerprint is known: a new token with the same
+  fingerprint, 1 chance in 256, waits until you change it again.)
+- If `/data` cannot be read or written, the module does not read Corrently (it could not keep the hourly
+  spacing) and retries `/data` every 10 seconds.
 
-- **Test the weather provider** — performs a live request to Open-Meteo and
-  shows the current temperature and humidity under the button.
-- **Identify a device** — pick one of your devices in the list and it will
-  signal itself (the demo light "blinks" in the logs).
+## Not included
 
-## Scenes
+- **Corrently tariff.** The answer has an `energyprice` field, but it is a signed value of a few cents
+  (often negative) that is not documented as a retail tariff: it is never published as a price, and the
+  module offers no energy contract template.
+- The CO2 fields of the answer (often empty) and the solar forecast.
 
-The integration adds its own cards to the scene editor (Gladys 5.1 or
-later), under the **Integrations** category:
+## Data and licence
 
-- **Motion detected** (trigger) — starts the scene when a demo motion sensor
-  sees something move. Optionally pick the sensor and what moved (person,
-  animal); left empty, any detection matches. The following actions can
-  read what moved with `{{triggerEvent.data.target}}`.
-- **Identify a device** (action) — makes the chosen device signal itself.
-  It returns whether the device could signal itself, so the following
-  actions can depend on it.
-
-## Dashboard
-
-Add the **Demo status** widget to a dashboard: it shows the live
-temperature of the weather station and the power of the office plug, the
-connection the plug currently uses (orange when degraded) and the observed
-location. Its **Identify the light** button makes the demo light signal
-itself.
-
-## Troubleshooting
-
-The integration logs everything it does: check the integration logs from the
-Gladys UI (or `docker logs` on the host) with `LOG_LEVEL=debug` for the full
-detail.
+Data: Corrently / STROMDAO GmbH, licence **CC BY-NC-SA 4.0** (non-commercial use, attribution).
+Documentation: [corrently.io/books/grunstromindex](https://corrently.io/books/grunstromindex). The
+module itself is Apache-2.0.

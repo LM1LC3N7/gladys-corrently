@@ -1,67 +1,67 @@
-# Template de démonstration
+# GrünstromIndex Corrently
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Connecteur non officiel, sans lien avec Corrently ni STROMDAO. **Jamais testé avec une vraie
+installation Gladys** : testé contre l'API Corrently réelle et un Gladys simulé.
 
-## Ce que vous obtenez
-
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Le GrünstromIndex (indice de courant vert) indique, de 0 à 100, la part d'électricité renouvelable
+autour d'un code postal allemand, heure par heure, environ trois jours à l'avance. Il sert à lancer
+le lave-linge, la pompe à chaleur ou la charge de la voiture aux heures les plus vertes.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+1. Saisissez votre **code postal allemand** (cinq chiffres, zéro initial compris, ex. `01067`).
+2. Facultatif : un **jeton** gratuit de [console.corrently.io](https://console.corrently.io/). Corrently
+   annonce la fin de l'accès sans jeton ; avec un jeton, le module continue de fonctionner. Le jeton est
+   gardé par Gladys dans sa base, jamais réaffiché, et envoyé seulement à Corrently (dans un en-tête
+   `Authorization`, pas dans l'adresse).
+3. Enregistrez, puis ouvrez l'appareil `GrünstromIndex <code postal>` dans la page des appareils de
+   l'intégration.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+## Ce que vous obtenez
 
-## Actions
+| Fonction                      | Signification                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| GrünstromIndex                | L'indice de l'heure en cours (0-100)                                                   |
+| GrünstromIndex next hour      | L'indice de l'heure suivante                                                           |
+| GrünstromIndex best of 24 h   | Le plus haut indice des 24 heures à partir de l'heure en cours                         |
+| Hours until the greenest hour | Heures d'ici cette heure la plus verte (0 : maintenant ; la première en cas d'égalité) |
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+Une heure que la prévision ne couvre pas reste inconnue (aucune valeur publiée) ; le meilleur des
+24 heures reste inconnu tant que les 24 heures ne sont pas toutes connues. Une prévision de plus de
+72 heures n'est plus utilisée.
 
-## Scènes
+**Calendrier d'énergie** `green-power-index-de` : chaque demi-heure reçoit un niveau, `low` (indice
+0-33), `medium` (34-66) ou `high` (67-100), jusqu'à sept jours à l'avance. Un modèle de tarif des
+contrats d'énergie de Gladys (catalogue communautaire ou autre intégration) peut le lire. Ces bornes ne
+changent jamais.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+## Lectures et usage raisonnable
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+- Une lecture par heure au plus, comme le demande la règle d'usage raisonnable de Corrently. L'heure de
+  chaque tentative est enregistrée dans `/data` avant la requête : un redémarrage ou un enregistrement
+  de la configuration ne lit pas plus tôt. Changer de code postal permet une lecture deux minutes après
+  la précédente.
+- Le bouton **Lire la prévision** ne lit que si la dernière lecture date d'une heure ; sinon il affiche
+  la prévision en mémoire et l'heure de la prochaine lecture.
+- Après un échec, l'attente double : 1 h, 2 h, 4 h, puis 6 h. Une réponse `429` avec un `Retry-After`
+  plus long est respectée (24 h au plus).
+- Si Corrently répond `401`/`403` alors qu'un jeton est envoyé, le jeton est considéré comme refusé :
+  seule une empreinte salée de 8 bits est gardée dans `/data`, il n'est plus envoyé, et les lectures
+  continuent sans lui jusqu'à ce que vous saisissiez un autre jeton. (Après un redémarrage, seule
+  l'empreinte est connue : un nouveau jeton de même empreinte, 1 chance sur 256, attend un nouveau
+  changement.)
+- Si `/data` ne peut être lu ou écrit, le module ne lit pas Corrently (il ne pourrait pas tenir
+  l'espacement d'une heure) et réessaie `/data` toutes les 10 secondes.
 
-## Tableau de bord
+## Hors périmètre
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+- **Tarif Corrently.** La réponse contient un champ `energyprice`, mais c'est une valeur signée de
+  quelques centimes (souvent négative) qui n'est pas documentée comme un tarif de fourniture : elle n'est
+  jamais publiée comme un prix, et le module ne propose aucun modèle de contrat d'énergie.
+- Les champs CO2 de la réponse (souvent vides) et la prévision solaire.
 
-## Dépannage
+## Données et licence
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Données : Corrently / STROMDAO GmbH, licence **CC BY-NC-SA 4.0** (usage non commercial, attribution).
+Documentation : [corrently.io/books/grunstromindex](https://corrently.io/books/grunstromindex). Le
+module lui-même est sous Apache-2.0.

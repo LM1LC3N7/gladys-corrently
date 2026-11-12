@@ -16,8 +16,8 @@ its only runtime dependency. It started from the official JavaScript template.
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/app.test.js              # one file
+node --test --test-name-pattern "fair"    # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
@@ -32,17 +32,29 @@ pushing.
 
 ```
 index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
+src/app.js                        CorrentlyApp: schedule (fair use), reads, states, calendar, status
+src/corrently.js                  the API answer, checked field by field; Retry-After
+src/http.js                       the only network code: timeout, bounded body, User-Agent
+src/forecast.js                   snapshot (now, next, best of 24 h), cache merge, calendar entries
+src/devices.js                    the device of a postcode and its states
+src/store.js                      /data/state.json: one operation at a time, bounded
+src/config.js                     postcode and optional token, normalized
+src/i18n.js                       status and button texts
+scripts/cover.mjs                 generates cover.png (plain Node)
+scripts/mutants.mjs               mutation run (copies the repo, baseline first)
+gladys-assistant-integration.json manifest: config, action, energy calendar
 docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
-.github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
+test/                             node --test, fake Gladys of the SDK, fake fetch, test clocks
 ```
+
+## Module rules
+
+- One read per hour at most (Corrently fair use): the attempt time goes to /data BEFORE the request;
+  /data unreadable or unwritable means no read. In-process waits use the monotonic clock.
+- The token never reaches a log line, a status, /data or the URL (Authorization header only); a refused
+  token leaves only an 8-bit salted fingerprint.
+- An unknown index is never published as 0; `energyprice` is never published (not a tariff).
+- The calendar key `green-power-index-de`, its granularity and its level bounds never change.
 
 ## Rules
 

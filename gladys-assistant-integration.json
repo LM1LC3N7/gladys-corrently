@@ -1,177 +1,104 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Corrently GrünstromIndex",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Unofficial connector: Corrently GrünstromIndex, how green the power is per German postcode.",
+    "fr": "Connecteur non officiel : GrünstromIndex Corrently, part de courant vert par code postal allemand.",
+    "de": "Inoffizieller Konnektor: Corrently GrünstromIndex, wie grün der Strom je Postleitzahl ist."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
-  "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-corrently:0.1.0",
+  "gladys_version": ">=5.3.0",
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-corrently/main/cover.png",
+  "categories": ["energy", "environment"],
+  "transports": ["cloud"],
+  "countries": ["DE"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Corrently GrünstromIndex",
+        "fr": "GrünstromIndex Corrently",
+        "de": "Corrently GrünstromIndex"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Unofficial connector, not affiliated with Corrently or STROMDAO. It reads the official GrünstromIndex forecast (0 to 100: how much of the power around a German postcode comes from renewables, hour by hour, about three days ahead) once an hour at most, as the Corrently fair-use policy asks. One device with the index now, next hour, the best of the next 24 hours and the hours until it, plus the Gladys energy calendar green-power-index-de (low, medium, high per half hour). Data: Corrently, CC BY-NC-SA 4.0, for non-commercial use.",
+        "fr": "Connecteur non officiel, sans lien avec Corrently ni STROMDAO. Il lit la prévision officielle du GrünstromIndex (0 à 100 : part d'électricité renouvelable autour d'un code postal allemand, heure par heure, environ trois jours à l'avance) une fois par heure au plus, comme le demande la règle d'usage raisonnable de Corrently. Un appareil avec l'indice actuel, celui de l'heure suivante, le meilleur des 24 prochaines heures et le nombre d'heures avant lui, plus le calendrier d'énergie Gladys green-power-index-de (low, medium, high par demi-heure). Données : Corrently, CC BY-NC-SA 4.0, pour un usage non commercial.",
+        "de": "Inoffizieller Konnektor, ohne Verbindung zu Corrently oder STROMDAO. Er liest die offizielle GrünstromIndex-Prognose (0 bis 100: Anteil erneuerbaren Stroms rund um eine Postleitzahl, stündlich, etwa drei Tage im Voraus) höchstens einmal pro Stunde, wie es die Fair-Use-Regel von Corrently verlangt. Ein Gerät mit dem Index jetzt, in der nächsten Stunde, dem besten der nächsten 24 Stunden und den Stunden bis dahin, dazu der Gladys-Energiekalender green-power-index-de (low, medium, high je halbe Stunde). Daten: Corrently, CC BY-NC-SA 4.0, für nicht kommerzielle Nutzung."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://corrently.io/books/grunstromindex",
+          "label": {
+            "en": "GrünstromIndex documentation",
+            "fr": "Documentation du GrünstromIndex",
+            "de": "GrünstromIndex-Dokumentation"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-corrently/blob/main/docs/en.md",
+          "label": {
+            "en": "Integration documentation",
+            "fr": "Documentation de l'intégration",
+            "de": "Dokumentation der Integration"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
+      "key": "zip",
+      "type": "string",
       "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
-    },
-    {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
+      "label": { "en": "German postcode", "fr": "Code postal allemand", "de": "Postleitzahl" },
       "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+        "en": "Five digits, leading zero included. Changing it creates a new device.",
+        "fr": "Cinq chiffres, zéro initial compris. Le changer crée un nouvel appareil.",
+        "de": "Fünf Ziffern, mit führender Null. Eine Änderung legt ein neues Gerät an."
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "placeholder": { "en": "e.g. 69256", "fr": "ex. 69256", "de": "z. B. 69256" }
     },
     {
-      "key": "unit",
-      "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "key": "token",
+      "type": "secret",
       "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Corrently token (optional)",
+        "fr": "Jeton Corrently (facultatif)",
+        "de": "Corrently-Token (optional)"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
-      },
-      "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+        "en": "Free token from console.corrently.io, recommended since Corrently announces the end of the access without token. Kept by Gladys in its database, never shown again, and only sent to Corrently.",
+        "fr": "Jeton gratuit de console.corrently.io, conseillé car Corrently annonce la fin de l'accès sans jeton. Gardé par Gladys dans sa base, jamais réaffiché, et envoyé seulement à Corrently.",
+        "de": "Kostenloses Token von console.corrently.io, empfohlen, da Corrently das Ende des Zugangs ohne Token ankündigt. Von Gladys in ihrer Datenbank aufbewahrt, nie wieder angezeigt und nur an Corrently gesendet."
+      }
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "test_connection",
+      "timeout_seconds": 30,
+      "label": {
+        "en": "Read the forecast",
+        "fr": "Lire la prévision",
+        "de": "Prognose lesen"
+      },
+      "description": {
+        "en": "Reads the forecast if the last read is an hour old, otherwise shows the one in memory and the time of the next read.",
+        "fr": "Lit la prévision si la dernière lecture date d'une heure, sinon affiche celle en mémoire et l'heure de la prochaine lecture.",
+        "de": "Liest die Prognose, wenn der letzte Abruf eine Stunde zurückliegt, sonst zeigt sie die gespeicherte und die Zeit des nächsten Abrufs."
+      }
     }
   ],
-  "scene_triggers": [
-    {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
-      "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
-      },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
-        },
-        {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
-          "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
-          ]
-        }
-      ],
-      "variables": [
-        {
-          "key": "target",
-          "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
-        }
-      ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
-    }
-  ]
+  "energy_contracts": {
+    "calendars": [
+      {
+        "key": "green-power-index-de",
+        "granularity": "thirty_minutes",
+        "timezone": "Europe/Berlin",
+        "values": ["low", "medium", "high"]
+      }
+    ]
+  }
 }

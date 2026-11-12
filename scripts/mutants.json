@@ -1,0 +1,164 @@
+[
+  {
+    "name": "read interval shortened",
+    "file": "src/constants.js",
+    "from": "export const READ_INTERVAL = HOUR;",
+    "to": "export const READ_INTERVAL = HOUR / 2;"
+  },
+  {
+    "name": "zip spacing removed",
+    "file": "src/constants.js",
+    "from": "export const ZIP_CHANGE_SPACING = 2 * 60_000;",
+    "to": "export const ZIP_CHANGE_SPACING = 0;"
+  },
+  {
+    "name": "attempt not saved before the request",
+    "file": "src/app.js",
+    "from": "    if (!saved) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "future attempt trusted",
+    "file": "src/app.js",
+    "from": "raw.attempt_at > wall + SKEW ? wall : raw.attempt_at",
+    "to": "raw.attempt_at"
+  },
+  {
+    "name": "future pause trusted",
+    "file": "src/app.js",
+    "from": "raw.pause_until > wall + MAX_PAUSE + SKEW ? 0 : raw.pause_until",
+    "to": "Math.min(raw.pause_until, wall + MAX_PAUSE)"
+  },
+  {
+    "name": "corrupt /data read as empty",
+    "file": "src/app.js",
+    "from": "    if (corrupt) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "unreadable /data read as empty",
+    "file": "src/app.js",
+    "from": "    if (!result.ok) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "monotonic check skipped",
+    "file": "src/app.js",
+    "from": "      if (left > 0) {",
+    "to": "      if (false) {"
+  },
+  {
+    "name": "button reads whenever",
+    "file": "src/app.js",
+    "from": "} else if (this.readDueMono !== undefined && this.monotonic() >= this.readDueMono) {",
+    "to": "} else {"
+  },
+  {
+    "name": "backoff not doubling",
+    "file": "src/app.js",
+    "from": "READ_INTERVAL * 2 ** Math.max(0, failures - 1)",
+    "to": "READ_INTERVAL"
+  },
+  {
+    "name": "Retry-After ignored",
+    "file": "src/app.js",
+    "from": "wait = Math.max(wait, retryAfterMs(error.retryAfter, error.date) ?? 0);",
+    "to": "wait = wait + 0;"
+  },
+  {
+    "name": "refused token sent again",
+    "file": "src/app.js",
+    "from": "if (refused && tokenFingerprint(refused.salt, token) === refused.fp) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "refused token in memory ignored",
+    "file": "src/app.js",
+    "from": "    if (this.refusedToken !== undefined) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "401 without token taken as refusal",
+    "file": "src/app.js",
+    "from": "      (error.status === 401 || error.status === 403) &&\n      token\n",
+    "to": "      (error.status === 401 || error.status === 403)\n"
+  },
+  {
+    "name": "old forecast used",
+    "file": "src/app.js",
+    "from": "if (wall - state.fetched_at > MAX_DATA_AGE) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "string index accepted",
+    "file": "src/corrently.js",
+    "from": "typeof value === 'number' && Number.isFinite(value) ? value : undefined",
+    "to": "value === '' || value === null ? undefined : Number(value)"
+  },
+  {
+    "name": "range not checked",
+    "file": "src/corrently.js",
+    "from": "gsi === undefined || gsi < 0 || gsi > 100",
+    "to": "gsi === undefined"
+  },
+  {
+    "name": "other postcode accepted",
+    "file": "src/corrently.js",
+    "from": "if (location !== undefined && String(location) !== zip) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "body not bounded",
+    "file": "src/http.js",
+    "from": "    if (size > limit) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "token in the URL instead of the header",
+    "file": "src/http.js",
+    "from": "      headers.Authorization = `Bearer ${token}`;",
+    "to": "      url = `${url}&token=${token}`;"
+  },
+  {
+    "name": "best of 24 with a missing hour",
+    "file": "src/forecast.js",
+    "from": "  if (!complete) {",
+    "to": "  if (false) {"
+  },
+  {
+    "name": "current hour dropped at merge",
+    "file": "src/forecast.js",
+    "from": "s.t < first && s.t < hourStart(now) + HOUR",
+    "to": "s.t < first && s.t < hourStart(now)"
+  },
+  {
+    "name": "calendar beyond 7 days",
+    "file": "src/forecast.js",
+    "from": "    if (t + HOUR / 2 > limit) {",
+    "to": "    if (false) {"
+  },
+  {
+    "name": "level bound moved",
+    "file": "src/constants.js",
+    "from": "  ['high', 67],",
+    "to": "  ['high', 66],"
+  },
+  {
+    "name": "token control bytes accepted",
+    "file": "src/config.js",
+    "from": "const TOKEN = /^[\\x21-\\x7e]{1,512}$/;",
+    "to": "const TOKEN = /^.{1,512}$/s;"
+  },
+  {
+    "name": "getConfig not retried",
+    "file": "src/app.js",
+    "from": "      this.configTimer = this.timers.setTimeout(() => this.connected(), delay);",
+    "to": ""
+  },
+  {
+    "name": "refusal kept after a token success",
+    "file": "src/app.js",
+    "from": "        state.refused = undefined;\n        this.refusedToken = undefined;\n",
+    "to": ""
+  }
+]
