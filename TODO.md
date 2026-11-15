@@ -34,3 +34,4 @@
 
 - Scene trigger "greenest hour starts" and a scene action "greenest window of N hours".
 - CO2 fields once Corrently fills them again.
+- [ ] Test « the Gladys bound is 10 s » : échéance de 1-2 s pour son realUntil (échec en 22 s sous mutants 34/36, r3 mineur).
