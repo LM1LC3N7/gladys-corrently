@@ -250,5 +250,11 @@
     "file": "src/app.js",
     "from": "    await this.bounded(\n      this.gladys.publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)]),\n    ).catch(",
     "to": "    await this.gladys.publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)]).catch("
+  },
+  {
+    "name": "read timer armed after stop when /data is unwritable",
+    "file": "src/app.js",
+    "from": "      await this.setStatus(false, T.dataUnwritable);\n      if (generation !== this.generation) {\n        return;\n      }",
+    "to": "      await this.setStatus(false, T.dataUnwritable);"
   }
 ]

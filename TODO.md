@@ -34,6 +34,3 @@
 
 - Scene trigger "greenest hour starts" and a scene action "greenest window of N hours".
 - CO2 fields once Corrently fills them again.
-- Review corrently-012 r1 M5 (readTimer armed after stop when /data is unwritable): fixed with a
-  generation check in `doRead`, without a test of its own (needs an unwritable /data and a stop during
-  the status call).

@@ -26,11 +26,24 @@ const cleanups = new WeakMap();
 function track(t, { app, dir }) {
   let entry = cleanups.get(t);
   if (!entry) {
-    entry = { apps: [], dirs: [] };
+    entry = { apps: [], dirs: [], releases: [] };
     cleanups.set(t, entry);
     t.after(async () => {
+      // Calls held by the test are freed first, and a stop that does not return fails
+      // the test instead of hanging it.
+      for (const release of entry.releases) {
+        release();
+      }
       for (const a of entry.apps) {
-        await a.stop();
+        let timer;
+        const deadline = new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('stop() did not return')), 3_000);
+        });
+        try {
+          await Promise.race([a.stop(), deadline]);
+        } finally {
+          clearTimeout(timer);
+        }
       }
       for (const d of entry.dirs) {
         rmSync(d, { recursive: true, force: true });
@@ -39,6 +52,25 @@ function track(t, { app, dir }) {
   }
   if (app) entry.apps.push(app);
   if (dir) entry.dirs.push(dir);
+}
+
+/** A promise that stays pending until the test ends (freed in `t.after`, before stop()). */
+function hold(t) {
+  track(t, {});
+  const entry = cleanups.get(t);
+  return new Promise((resolve) => entry.releases.push(resolve));
+}
+
+/** Advance the test clock without crossing a /data timeout during a real disk write. */
+async function advanceSafe(app, clock, ms) {
+  let left = ms;
+  while (left > 0) {
+    await app.store.queue;
+    const dues = clock.pending().filter((d) => d > 0.01);
+    const step = Math.max(1, Math.min(left, ...dues));
+    await clock.advance(step);
+    left -= step;
+  }
 }
 
 function tempDir(t) {
@@ -600,6 +632,7 @@ test('a read longer than the interval does not stop the read loop', async (t) =>
   const gate = new Promise((resolve) => {
     release = resolve;
   });
+  cleanups.get(t).releases.push(release);
   fake.restore();
   fake = installFetch([
     [
@@ -621,10 +654,11 @@ test('a read longer than the interval does not stop the read loop', async (t) =>
   release();
   await started;
   clock.waitFor = () => app.reading;
-  await until(() => calls().length >= 2, clock);
+  await realUntil(() => calls().length >= 2);
   assert.equal(calls().length, 2, 'the loop read again after the long cycle');
   await app.reading;
-  await clock.advance(HOUR + 5_000);
+  await advanceSafe(app, clock, HOUR + 5_000);
+  await realUntil(() => calls().length === 3);
   assert.equal(calls().length, 3, 'and keeps its hourly rhythm');
 });
 
@@ -669,7 +703,7 @@ test('publishChangedStates never answering: the cycle ends, the loop goes on', a
   await advanceUntil(clock, () => !app.reading);
   assert.equal(app.reading, undefined, 'the cycle ended');
   await within(started, 'start');
-  await clock.advance(HOUR + 5_000);
+  await advanceSafe(app, clock, HOUR + 5_000);
   await realUntil(() => calls().length === 2);
   assert.equal(calls().length, 2, 'the loop read again an hour later');
 });
@@ -728,14 +762,15 @@ test('getConfig never answering: a status, then the retry works', async (t) => {
   await advanceUntil(clock, () => gladys.fake.connectionStatus?.connected === false);
   await within(connecting, 'connected');
   assert.match(gladys.fake.connectionStatus.message.en, /Cannot read the configuration/);
-  await advanceUntil(clock, () => calls().length === 1, 500);
+  // Exactly to the retry timer: no /data timeout may be crossed during the real write.
+  await clock.advance(Math.min(...clock.pending().filter((d) => d > 0.01)) + 1);
   await realUntil(() => calls().length === 1);
   assert.equal(calls().length, 1);
 });
 
 test('the Gladys bound is 10 s: not at 9 s, gone at 11 s', async (t) => {
   const { app, gladys, clock, calls } = setup(t);
-  gladys.publishChangedStates = () => new Promise(() => {});
+  gladys.publishChangedStates = () => hold(t);
   clock.waitFor = undefined;
   app.start({ zip: '10115' });
   await realUntil(() => calls().length === 1);
@@ -753,6 +788,7 @@ test('stop during the end of a long cycle: nothing is read or armed afterwards',
   const gate = new Promise((resolve) => {
     release = resolve;
   });
+  cleanups.get(t).releases.push(release);
   fake.restore();
   fake = installFetch([
     [
@@ -768,8 +804,7 @@ test('stop during the end of a long cycle: nothing is read or armed afterwards',
   const real = gladys.setConnectionStatus.bind(gladys);
   let stuck = false;
   let stuckCalls = 0;
-  gladys.setConnectionStatus = (...args) =>
-    stuck ? ((stuckCalls += 1), new Promise(() => {})) : real(...args);
+  gladys.setConnectionStatus = (...args) => (stuck ? ((stuckCalls += 1), hold(t)) : real(...args));
   clock.waitFor = undefined;
   app.start({ zip: '10115' });
   await realUntil(() => calls().length === 1);
@@ -791,7 +826,7 @@ test('stop during the status call of the hourly tick: no tick is armed afterward
   const { app, gladys, clock } = setup(t);
   await app.start({ zip: '10115' });
   await app.reading;
-  gladys.setConnectionStatus = () => new Promise(() => {});
+  gladys.setConnectionStatus = () => hold(t);
   app.lastStatus = undefined;
   clock.waitFor = undefined;
   clock.fireEarly();
@@ -807,7 +842,7 @@ test('a connected() cut by stop() does not retry or start after it', async (t) =
   let calls = 0;
   gladys.getConfig = () => {
     calls += 1;
-    return new Promise(() => {});
+    return hold(t);
   };
   let statuses = 0;
   gladys.setConnectionStatus = async () => {
@@ -824,12 +859,6 @@ test('a connected() cut by stop() does not retry or start after it', async (t) =
   assert.deepEqual(clock.pending(), []);
 });
 
-async function until(check, clock) {
-  for (let i = 0; i < 200 && !check(); i += 1) {
-    await clock.advance(1_000);
-  }
-}
-
 test('stop during the status call of a failed getConfig: no retry is armed', async (t) => {
   const { app, gladys, clock } = setup(t);
   let getConfigCalls = 0;
@@ -841,6 +870,7 @@ test('stop during the status call of a failed getConfig: no retry is armed', asy
   const gate = new Promise((resolve) => {
     release = resolve;
   });
+  cleanups.get(t).releases.push(release);
   let statuses = 0;
   gladys.setConnectionStatus = async () => {
     statuses += 1;
@@ -855,4 +885,37 @@ test('stop during the status call of a failed getConfig: no retry is armed', asy
   await clock.advance(3 * HOUR);
   assert.equal(getConfigCalls, 1, 'no retry after stop');
   assert.deepEqual(clock.pending(), []);
+});
+
+test('stop during the status call of an unwritable /data: no read timer afterwards', async (t) => {
+  if (process.getuid?.() === 0) {
+    t.skip('root writes anywhere');
+    return;
+  }
+  const dataDir = tempDir(t);
+  chmodSync(dataDir, 0o500);
+  t.after(() => {
+    try {
+      chmodSync(dataDir, 0o700);
+    } catch {
+      // already removed
+    }
+  });
+  const { app, gladys, clock } = setup(t, { dataDir });
+  const real = gladys.setConnectionStatus.bind(gladys);
+  let held = 0;
+  gladys.setConnectionStatus = (connected, message) => {
+    if (message?.en?.includes('cannot be written')) {
+      held += 1;
+      return hold(t);
+    }
+    return real(connected, message);
+  };
+  clock.waitFor = undefined;
+  await app.start({ zip: '10115' });
+  await realUntil(() => held === 1);
+  const stopping = app.stop();
+  await advanceUntil(clock, () => !app.reading);
+  await within(stopping, 'stop');
+  assert.deepEqual(clock.pending(), [], 'no read timer after stop');
 });
