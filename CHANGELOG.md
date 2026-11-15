@@ -6,6 +6,8 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-15
+
 ### Fixed
 
 - A read cycle longer than the interval no longer stops the read loop for good; calls to
@@ -26,5 +28,6 @@ uses [semantic versioning](https://semver.org/).
 - One read per hour at most (Corrently fair use), kept across restarts and
   postcode changes; no token needed.
 
-[Unreleased]: https://github.com/LM1LC3N7/gladys-corrently/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/LM1LC3N7/gladys-corrently/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/LM1LC3N7/gladys-corrently/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/LM1LC3N7/gladys-corrently/releases/tag/v0.1.1
