@@ -3,7 +3,7 @@
 // fair-use policy: one read per hour at most.
 // -----------------------------------------------------------------------------
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.1.1';
 export const USER_AGENT = `gladys-corrently/${VERSION} (+https://github.com/LM1LC3N7/gladys-corrently)`;
 
 // The official GrünstromIndex forecast: hourly slots for about five days,
@@ -14,6 +14,8 @@ export const API_URL = 'https://api.corrently.io/v2.0/gsi/prediction';
 // whole, and a read never lasts more than the timeout.
 export const MAX_BODY_BYTES = 1024 * 1024;
 export const HTTP_TIMEOUT = 15_000;
+// A call to Gladys (states, calendar, status) is given up after this long.
+export const GLADYS_TIMEOUT = 10_000;
 export const MAX_SLOTS = 500;
 
 // Schedule. Every read (failed or not) is at least READ_INTERVAL after the

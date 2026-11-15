@@ -6,6 +6,11 @@ uses [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A read cycle longer than the interval no longer stops the read loop for good; calls to
+  Gladys (states, calendar, status, configuration) are given up after 10 s.
+
 ## [0.1.1] - 2026-11-12
 
 ### Added

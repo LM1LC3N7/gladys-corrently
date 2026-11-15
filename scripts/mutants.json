@@ -166,5 +166,17 @@
     "file": "src/app.js",
     "from": "computed <= wall && computed >= wall - MAX_DATA_AGE",
     "to": "computed <= wall"
+  },
+  {
+    "name": "read guard removed (a long cycle kills the loop)",
+    "file": "src/app.js",
+    "from": "      if (this.reading) {\n        // A cycle longer",
+    "to": "      if (false) {\n        // A cycle longer"
+  },
+  {
+    "name": "Gladys calls unbounded",
+    "file": "src/app.js",
+    "from": "    return Promise.race([promise, late])",
+    "to": "    return promise"
   }
 ]

@@ -17,6 +17,7 @@ import {
   CONFIG_RETRY_MAX,
   CONFIG_RETRY_MIN,
   DATA_RETRY,
+  GLADYS_TIMEOUT,
   HOUR,
   MAX_BACKOFF,
   MAX_DATA_AGE,
@@ -81,7 +82,7 @@ export class CorrentlyApp {
     this.configTimer = undefined;
     let raw;
     try {
-      raw = await this.gladys.getConfig();
+      raw = await this.bounded(this.gladys.getConfig());
     } catch (err) {
       this.logger.warn(`Reading the configuration failed: ${err.message}`);
       await this.setStatus(false, T.configUnreadable);
@@ -137,15 +138,25 @@ export class CorrentlyApp {
     await this.reading?.catch(() => {});
   }
 
+  /** A Gladys call never holds a cycle longer than GLADYS_TIMEOUT (a late answer is dropped). */
+  bounded(promise) {
+    let timer;
+    const late = new Promise((_, reject) => {
+      timer = this.timers.setTimeout(() => reject(new Error('Gladys too slow')), GLADYS_TIMEOUT);
+    });
+    promise.catch(() => {});
+    return Promise.race([promise, late]).finally(() => this.timers.clearTimeout(timer));
+  }
+
   async setStatus(connected, message) {
     const key = JSON.stringify([connected, message ?? null]);
     if (key === this.lastStatus) {
       return;
     }
     this.lastStatus = key;
-    await this.gladys
-      .setConnectionStatus(connected, message)
-      .catch((err) => this.logger.warn(`setConnectionStatus failed: ${err.message}`));
+    await this.bounded(this.gladys.setConnectionStatus(connected, message)).catch((err) =>
+      this.logger.warn(`setConnectionStatus failed: ${err.message}`),
+    );
   }
 
   // --- /data -------------------------------------------------------------------
@@ -251,9 +262,9 @@ export class CorrentlyApp {
     if (states.length === 0 || generation !== this.generation) {
       return;
     }
-    await this.gladys
-      .publishChangedStates(states, { heartbeat: 50 * 60_000 })
-      .catch((err) => this.logger.warn(`Publishing the states failed: ${err.message}`));
+    await this.bounded(this.gladys.publishChangedStates(states, { heartbeat: 50 * 60_000 })).catch(
+      (err) => this.logger.warn(`Publishing the states failed: ${err.message}`),
+    );
   }
 
   /** Every hour, one second after the hour: the sensors follow the slots. */
@@ -312,6 +323,16 @@ export class CorrentlyApp {
       const left = this.readDueMono - this.monotonic();
       if (left > 0) {
         this.readTimer = this.timers.setTimeout(fire, left);
+        return;
+      }
+      if (this.reading) {
+        // A cycle longer than the interval: this one is still running (its
+        // end called us). Wait for it, then schedule again, or the loop dies.
+        this.reading.then(() => {
+          if (generation === this.generation) {
+            this.scheduleRead();
+          }
+        });
         return;
       }
       this.read(generation);
@@ -423,7 +444,7 @@ export class CorrentlyApp {
       return;
     }
     try {
-      await this.gladys.publishEnergyCalendar(CALENDAR_KEY, entries);
+      await this.bounded(this.gladys.publishEnergyCalendar(CALENDAR_KEY, entries));
     } catch (err) {
       if (!this.calendarWarned) {
         this.calendarWarned = true;

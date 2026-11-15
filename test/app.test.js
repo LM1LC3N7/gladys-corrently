@@ -593,3 +593,58 @@ test('an iat more than 72 h old is not the data date: the read time is', async (
   assert.ok(date >= START && date < START + 60_000, String(date - START));
   assert.ok(Number.isFinite(gladys.fake.lastState(F('gsi'))), 'the forecast is used');
 });
+
+test('a read longer than the interval does not stop the read loop', async (t) => {
+  const { app, clock, calls } = setup(t);
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  fake.restore();
+  fake = installFetch([
+    [
+      /gsi\/prediction/,
+      async () => {
+        if (fake.calls.length === 1) {
+          await gate;
+        }
+        return json(answerAt(FIXTURE_START));
+      },
+    ],
+  ]);
+  clock.waitFor = undefined;
+  const started = app.start({ zip: '10115' });
+  for (let i = 0; i < 500 && fake.calls.length === 0; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(calls().length, 1);
+  clock.jumpWall(HOUR + 2 * 60_000);
+  await clock.advance(HOUR + 2 * 60_000);
+  release();
+  await started;
+  clock.waitFor = () => app.reading;
+  await until(() => calls().length >= 2, clock);
+  assert.equal(calls().length, 2, 'the loop read again after the long cycle');
+  await app.reading;
+  await clock.advance(HOUR + 5_000);
+  assert.equal(calls().length, 3, 'and keeps its hourly rhythm');
+});
+
+test('a Gladys call that never answers does not hold the cycle', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  gladys.publishChangedStates = () => new Promise(() => {});
+  clock.waitFor = undefined;
+  const started = app.start({ zip: '10115' });
+  for (let i = 0; i < 500 && fake.calls.length === 0; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  await until(() => !app.reading, clock);
+  await started;
+  assert.equal(app.reading, undefined, 'the cycle ended although Gladys never answered');
+});
+
+async function until(check, clock) {
+  for (let i = 0; i < 200 && !check(); i += 1) {
+    await clock.advance(1_000);
+  }
+}
