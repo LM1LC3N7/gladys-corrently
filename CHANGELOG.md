@@ -9,7 +9,9 @@ uses [semantic versioning](https://semver.org/).
 ### Fixed
 
 - A read cycle longer than the interval no longer stops the read loop for good; calls to
-  Gladys (states, calendar, status, configuration) are given up after 10 s.
+  Gladys (states, calendar, status, configuration, devices) are given up after 10 s.
+- The hourly tick and a cut `connected` no longer arm timers after the integration stopped; the
+  User-Agent version is read from package.json.
 
 ## [0.1.1] - 2026-11-12
 

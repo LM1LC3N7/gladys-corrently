@@ -3,7 +3,12 @@
 // fair-use policy: one read per hour at most.
 // -----------------------------------------------------------------------------
 
-export const VERSION = '0.1.1';
+import { readFileSync } from 'node:fs';
+
+// The version is package.json's (the release workflow rewrites only that file).
+export const VERSION = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+).version;
 export const USER_AGENT = `gladys-corrently/${VERSION} (+https://github.com/LM1LC3N7/gladys-corrently)`;
 
 // The official GrünstromIndex forecast: hourly slots for about five days,

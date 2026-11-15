@@ -178,5 +178,77 @@
     "file": "src/app.js",
     "from": "    return Promise.race([promise, late])",
     "to": "    return promise"
+  },
+  {
+    "name": "waiter ignores the generation",
+    "file": "src/app.js",
+    "from": "          if (generation === this.generation) {\n            this.scheduleRead(generation);\n          }",
+    "to": "          this.scheduleRead();"
+  },
+  {
+    "name": "tick armed after stop",
+    "file": "src/app.js",
+    "from": "      await this.updateStatus();\n      if (generation !== this.generation) {\n        return;\n      }\n      this.scheduleTick(generation);",
+    "to": "      await this.updateStatus();\n      this.scheduleTick();"
+  },
+  {
+    "name": "getConfig unbounded",
+    "file": "src/app.js",
+    "from": "await this.bounded(this.gladys.getConfig())",
+    "to": "await this.gladys.getConfig()"
+  },
+  {
+    "name": "setConnectionStatus unbounded",
+    "file": "src/app.js",
+    "from": "await this.bounded(this.gladys.setConnectionStatus(connected, message)).catch",
+    "to": "await this.gladys.setConnectionStatus(connected, message).catch"
+  },
+  {
+    "name": "publishChangedStates unbounded",
+    "file": "src/app.js",
+    "from": "await this.bounded(this.gladys.publishChangedStates(states, { heartbeat: 50 * 60_000 })).catch",
+    "to": "await this.gladys.publishChangedStates(states, { heartbeat: 50 * 60_000 }).catch"
+  },
+  {
+    "name": "publishEnergyCalendar unbounded",
+    "file": "src/app.js",
+    "from": "await this.bounded(this.gladys.publishEnergyCalendar(CALENDAR_KEY, entries))",
+    "to": "await this.gladys.publishEnergyCalendar(CALENDAR_KEY, entries)"
+  },
+  {
+    "name": "Gladys bound 100 s",
+    "file": "src/constants.js",
+    "from": "GLADYS_TIMEOUT = 10_000",
+    "to": "GLADYS_TIMEOUT = 100_000"
+  },
+  {
+    "name": "Gladys bound 1 s",
+    "file": "src/constants.js",
+    "from": "GLADYS_TIMEOUT = 10_000",
+    "to": "GLADYS_TIMEOUT = 1_000"
+  },
+  {
+    "name": "dropped status not sent again",
+    "file": "src/app.js",
+    "from": "if (this.lastStatus === key) {",
+    "to": "if (false) {"
+  },
+  {
+    "name": "config error handled after stop",
+    "file": "src/app.js",
+    "from": "    } catch (err) {\n      if (epoch !== this.epoch) {\n        return;\n      }\n      this.logger.warn(`Reading the configuration failed",
+    "to": "    } catch (err) {\n      this.logger.warn(`Reading the configuration failed"
+  },
+  {
+    "name": "config retry armed after stop",
+    "file": "src/app.js",
+    "from": "      await this.setStatus(false, T.configUnreadable);\n      if (epoch !== this.epoch) {\n        return;\n      }",
+    "to": "      await this.setStatus(false, T.configUnreadable);"
+  },
+  {
+    "name": "publishDiscoveredDevices unbounded",
+    "file": "src/app.js",
+    "from": "    await this.bounded(\n      this.gladys.publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)]),\n    ).catch(",
+    "to": "    await this.gladys.publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)]).catch("
   }
 ]

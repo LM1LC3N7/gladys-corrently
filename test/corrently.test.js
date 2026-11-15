@@ -1,6 +1,6 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_SLOTS, USER_AGENT } from '../src/constants.js';
+import { MAX_SLOTS, USER_AGENT, VERSION } from '../src/constants.js';
 import {
   AnswerError,
   computedAt,
@@ -86,7 +86,7 @@ test('no token, no Authorization header; own User-Agent', async () => {
   assert.deepEqual(Object.keys(call.params), ['zip']);
   assert.equal(call.init.headers.Authorization, undefined);
   assert.equal(call.init.headers['User-Agent'], USER_AGENT);
-  assert.match(USER_AGENT, /^gladys-corrently\/0\.1\.1 \(\+https:\/\/github\.com\/LM1LC3N7\//);
+  assert.ok(USER_AGENT.startsWith(`gladys-corrently/${VERSION} (+https://github.com/LM1LC3N7/`));
 });
 
 test('computedAt: the oldest numeric iat, nothing else', () => {

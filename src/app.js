@@ -61,6 +61,7 @@ export class CorrentlyApp {
     this.config = normalizeConfig();
     this.state = undefined;
     this.generation = 0;
+    this.epoch = 0; // stop() moves it: a connected() started before is void
     this.lifecycle = Promise.resolve();
     this.reading = undefined;
     this.readTimer = undefined;
@@ -80,15 +81,25 @@ export class CorrentlyApp {
   async connected() {
     this.timers.clearTimeout(this.configTimer);
     this.configTimer = undefined;
+    const epoch = this.epoch;
     let raw;
     try {
       raw = await this.bounded(this.gladys.getConfig());
     } catch (err) {
+      if (epoch !== this.epoch) {
+        return;
+      }
       this.logger.warn(`Reading the configuration failed: ${err.message}`);
       await this.setStatus(false, T.configUnreadable);
+      if (epoch !== this.epoch) {
+        return;
+      }
       const delay = this.configDelay;
       this.configDelay = Math.min(CONFIG_RETRY_MAX, this.configDelay * 2);
       this.configTimer = this.timers.setTimeout(() => this.connected(), delay);
+      return;
+    }
+    if (epoch !== this.epoch) {
       return;
     }
     this.configDelay = CONFIG_RETRY_MIN;
@@ -100,6 +111,7 @@ export class CorrentlyApp {
   }
 
   stop() {
+    this.epoch += 1;
     this.timers.clearTimeout(this.configTimer);
     this.configTimer = undefined;
     return this.serialize(() => this.doStop());
@@ -154,9 +166,13 @@ export class CorrentlyApp {
       return;
     }
     this.lastStatus = key;
-    await this.bounded(this.gladys.setConnectionStatus(connected, message)).catch((err) =>
-      this.logger.warn(`setConnectionStatus failed: ${err.message}`),
-    );
+    await this.bounded(this.gladys.setConnectionStatus(connected, message)).catch((err) => {
+      this.logger.warn(`setConnectionStatus failed: ${err.message}`);
+      if (this.lastStatus === key) {
+        // Not delivered: the next update sends it again.
+        this.lastStatus = undefined;
+      }
+    });
   }
 
   // --- /data -------------------------------------------------------------------
@@ -182,8 +198,8 @@ export class CorrentlyApp {
     if (generation !== this.generation) {
       return;
     }
-    this.scheduleTick();
-    this.scheduleRead();
+    this.scheduleTick(generation);
+    this.scheduleRead(generation);
     await this.updateStatus();
   }
 
@@ -235,9 +251,9 @@ export class CorrentlyApp {
     if (!this.config.zip) {
       return;
     }
-    await this.gladys
-      .publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)])
-      .catch((err) => this.logger.warn(`Publishing the device failed: ${err.message}`));
+    await this.bounded(
+      this.gladys.publishDiscoveredDevices([buildDevice(this.gladys, this.config.zip)]),
+    ).catch((err) => this.logger.warn(`Publishing the device failed: ${err.message}`));
   }
 
   /** The slots still usable: from a read of this postcode, less than MAX_DATA_AGE old. */
@@ -268,11 +284,10 @@ export class CorrentlyApp {
   }
 
   /** Every hour, one second after the hour: the sensors follow the slots. */
-  scheduleTick() {
+  scheduleTick(generation = this.generation) {
     this.timers.clearTimeout(this.tickTimer);
     const wall = this.now();
     const next = Math.floor(wall / HOUR) * HOUR + HOUR + 1_000;
-    const generation = this.generation;
     this.tickTimer = this.timers.setTimeout(async () => {
       if (generation !== this.generation) {
         return;
@@ -282,7 +297,10 @@ export class CorrentlyApp {
         return;
       }
       await this.updateStatus();
-      this.scheduleTick();
+      if (generation !== this.generation) {
+        return;
+      }
+      this.scheduleTick(generation);
     }, next - wall);
   }
 
@@ -306,7 +324,10 @@ export class CorrentlyApp {
     return Math.min(MAX_PAUSE, Math.max(0, due - wall));
   }
 
-  scheduleRead() {
+  scheduleRead(generation = this.generation) {
+    if (generation !== this.generation) {
+      return;
+    }
     this.timers.clearTimeout(this.readTimer);
     this.readTimer = undefined;
     const delay = this.readDelay();
@@ -315,7 +336,6 @@ export class CorrentlyApp {
     }
     const mono = this.monotonic();
     this.readDueMono = mono + delay;
-    const generation = this.generation;
     const fire = () => {
       if (generation !== this.generation) {
         return;
@@ -330,7 +350,7 @@ export class CorrentlyApp {
         // end called us). Wait for it, then schedule again, or the loop dies.
         this.reading.then(() => {
           if (generation === this.generation) {
-            this.scheduleRead();
+            this.scheduleRead(generation);
           }
         });
         return;
@@ -370,6 +390,9 @@ export class CorrentlyApp {
     if (!saved) {
       this.logger.warn('/data not writable: the read waits');
       await this.setStatus(false, T.dataUnwritable);
+      if (generation !== this.generation) {
+        return;
+      }
       this.readTimer = this.timers.setTimeout(() => this.read(generation), DATA_RETRY);
       return;
     }
@@ -421,7 +444,7 @@ export class CorrentlyApp {
     if (generation !== this.generation) {
       return;
     }
-    this.scheduleRead();
+    this.scheduleRead(generation);
     await this.updateStatus();
   }
 

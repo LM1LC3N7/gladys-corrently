@@ -614,9 +614,7 @@ test('a read longer than the interval does not stop the read loop', async (t) =>
   ]);
   clock.waitFor = undefined;
   const started = app.start({ zip: '10115' });
-  for (let i = 0; i < 500 && fake.calls.length === 0; i += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
-  }
+  await realUntil(() => fake.calls.length === 1);
   assert.equal(calls().length, 1);
   clock.jumpWall(HOUR + 2 * 60_000);
   await clock.advance(HOUR + 2 * 60_000);
@@ -630,17 +628,200 @@ test('a read longer than the interval does not stop the read loop', async (t) =>
   assert.equal(calls().length, 3, 'and keeps its hourly rhythm');
 });
 
-test('a Gladys call that never answers does not hold the cycle', async (t) => {
-  const { app, gladys, clock } = setup(t);
-  gladys.publishChangedStates = () => new Promise(() => {});
+// A Gladys call that does not answer in time, then answers late (1.5 s real): under a
+// mutant without the bound the test fails on its assertion, it never hangs.
+const lateAnswer = (value) =>
+  new Promise((resolve) => {
+    setTimeout(() => resolve(value), 1_500);
+  });
+
+async function within(promise, what) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what}: still waiting`)), 600);
+  });
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function realUntil(check) {
+  for (let i = 0; i < 10_000 && !check(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+}
+
+/** Advance the test clock until `check` holds (no real wait on a stuck call). */
+async function advanceUntil(clock, check, step = 1_000) {
+  for (let i = 0; i < 60 && !check(); i += 1) {
+    await clock.advance(step);
+  }
+}
+
+test('publishChangedStates never answering: the cycle ends, the loop goes on', async (t) => {
+  const { app, gladys, clock, calls } = setup(t);
+  gladys.publishChangedStates = () => lateAnswer();
   clock.waitFor = undefined;
   const started = app.start({ zip: '10115' });
-  for (let i = 0; i < 500 && fake.calls.length === 0; i += 1) {
-    await new Promise((resolve) => setImmediate(resolve));
-  }
-  await until(() => !app.reading, clock);
-  await started;
-  assert.equal(app.reading, undefined, 'the cycle ended although Gladys never answered');
+  await realUntil(() => calls().length === 1);
+  await advanceUntil(clock, () => !app.reading);
+  assert.equal(app.reading, undefined, 'the cycle ended');
+  await within(started, 'start');
+  await clock.advance(HOUR + 5_000);
+  await realUntil(() => calls().length === 2);
+  assert.equal(calls().length, 2, 'the loop read again an hour later');
+});
+
+test('publishEnergyCalendar never answering: the cycle ends, one warning', async (t) => {
+  const { app, gladys, clock, calls, logger } = setup(t);
+  gladys.publishEnergyCalendar = () => lateAnswer();
+  clock.waitFor = undefined;
+  const started = app.start({ zip: '10115' });
+  await realUntil(() => calls().length === 1);
+  await advanceUntil(clock, () => !app.reading);
+  assert.equal(app.reading, undefined, 'the cycle ended');
+  await within(started, 'start');
+  assert.equal(logger.lines.filter((l) => l.includes('green-power-index-de')).length, 1);
+});
+
+test('setConnectionStatus never answering: the cycle ends, the status is sent again', async (t) => {
+  const { app, gladys, clock, calls } = setup(t);
+  const real = gladys.setConnectionStatus.bind(gladys);
+  let stuck = true;
+  gladys.setConnectionStatus = (...args) => (stuck ? lateAnswer() : real(...args));
+  clock.waitFor = undefined;
+  const started = app.start({ zip: '10115' });
+  await realUntil(() => calls().length === 1);
+  await advanceUntil(clock, () => !app.reading);
+  assert.equal(app.reading, undefined, 'the cycle ended');
+  await within(started, 'start');
+  stuck = false;
+  await app.updateStatus();
+  assert.equal(gladys.fake.connectionStatus.connected, true, 'a dropped status is sent again');
+});
+
+test('publishDiscoveredDevices never answering: start ends and stop is not blocked', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  gladys.publishDiscoveredDevices = () => lateAnswer();
+  clock.waitFor = undefined;
+  const started = app.start({ zip: '10115' });
+  await advanceUntil(clock, () => false, 1_000).catch(() => {});
+  await within(started, 'start');
+  await within(app.stop(), 'stop');
+});
+
+test('getConfig never answering: a status, then the retry works', async (t) => {
+  const { app, gladys, clock, calls } = setup(t);
+  const real = gladys.getConfig.bind(gladys);
+  let first = true;
+  gladys.getConfig = () => {
+    if (first) {
+      first = false;
+      return lateAnswer({});
+    }
+    return real();
+  };
+  clock.waitFor = undefined;
+  const connecting = app.connected();
+  await advanceUntil(clock, () => gladys.fake.connectionStatus?.connected === false);
+  await within(connecting, 'connected');
+  assert.match(gladys.fake.connectionStatus.message.en, /Cannot read the configuration/);
+  await advanceUntil(clock, () => calls().length === 1, 500);
+  await realUntil(() => calls().length === 1);
+  assert.equal(calls().length, 1);
+});
+
+test('the Gladys bound is 10 s: not at 9 s, gone at 11 s', async (t) => {
+  const { app, gladys, clock, calls } = setup(t);
+  gladys.publishChangedStates = () => new Promise(() => {});
+  clock.waitFor = undefined;
+  app.start({ zip: '10115' });
+  await realUntil(() => calls().length === 1);
+  await realUntil(() => clock.pending().some((d) => d > 9_000 && d <= 10_000));
+  await clock.advance(9_000);
+  assert.ok(app.reading, 'still waiting at 9 s');
+  await clock.advance(2_000);
+  await realUntil(() => !app.reading);
+  assert.equal(app.reading, undefined, 'given up at 11 s');
+});
+
+test('stop during the end of a long cycle: nothing is read or armed afterwards', async (t) => {
+  const { app, gladys, clock, calls } = setup(t);
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  fake.restore();
+  fake = installFetch([
+    [
+      /gsi\/prediction/,
+      async () => {
+        if (fake.calls.length === 1) {
+          await gate;
+        }
+        return json(answerAt(FIXTURE_START));
+      },
+    ],
+  ]);
+  const real = gladys.setConnectionStatus.bind(gladys);
+  let stuck = false;
+  let stuckCalls = 0;
+  gladys.setConnectionStatus = (...args) =>
+    stuck ? ((stuckCalls += 1), new Promise(() => {})) : real(...args);
+  clock.waitFor = undefined;
+  app.start({ zip: '10115' });
+  await realUntil(() => calls().length === 1);
+  await clock.advance(HOUR + 2 * 60_000);
+  stuck = true;
+  release();
+  await realUntil(() => stuckCalls > 0);
+  assert.equal(stuckCalls, 1, 'the cycle is at its final status call');
+  const stopping = app.stop();
+  await advanceUntil(clock, () => !app.reading);
+  await within(stopping, 'stop');
+  await clock.advance(3 * HOUR);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(calls().length, 1, 'no read after stop');
+  assert.deepEqual(clock.pending(), [], 'no timer after stop');
+});
+
+test('stop during the status call of the hourly tick: no tick is armed afterwards', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  await app.start({ zip: '10115' });
+  await app.reading;
+  gladys.setConnectionStatus = () => new Promise(() => {});
+  app.lastStatus = undefined;
+  clock.waitFor = undefined;
+  clock.fireEarly();
+  await realUntil(() => app.lastStatus !== undefined);
+  const stopping = app.stop();
+  await advanceUntil(clock, () => clock.pending().length === 0 && false, 1_000);
+  await within(stopping, 'stop');
+  assert.deepEqual(clock.pending(), [], 'no timer after stop');
+});
+
+test('a connected() cut by stop() does not retry or start after it', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  let calls = 0;
+  gladys.getConfig = () => {
+    calls += 1;
+    return new Promise(() => {});
+  };
+  let statuses = 0;
+  gladys.setConnectionStatus = async () => {
+    statuses += 1;
+  };
+  clock.waitFor = undefined;
+  const connecting = app.connected();
+  await app.stop();
+  await advanceUntil(clock, () => false, 1_000);
+  await within(connecting, 'connected');
+  await clock.advance(3 * HOUR);
+  assert.equal(calls, 1, 'no new getConfig after stop');
+  assert.equal(statuses, 0, 'no status after stop');
+  assert.deepEqual(clock.pending(), []);
 });
 
 async function until(check, clock) {
@@ -648,3 +829,30 @@ async function until(check, clock) {
     await clock.advance(1_000);
   }
 }
+
+test('stop during the status call of a failed getConfig: no retry is armed', async (t) => {
+  const { app, gladys, clock } = setup(t);
+  let getConfigCalls = 0;
+  gladys.getConfig = async () => {
+    getConfigCalls += 1;
+    throw new Error('boom');
+  };
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  let statuses = 0;
+  gladys.setConnectionStatus = async () => {
+    statuses += 1;
+    await gate;
+  };
+  clock.waitFor = undefined;
+  const connecting = app.connected();
+  await realUntil(() => statuses === 1);
+  await app.stop();
+  release();
+  await within(connecting, 'connected');
+  await clock.advance(3 * HOUR);
+  assert.equal(getConfigCalls, 1, 'no retry after stop');
+  assert.deepEqual(clock.pending(), []);
+});
